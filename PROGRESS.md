@@ -32,7 +32,39 @@ Monorepo scaffold (`/api` Fastify + Drizzle + `/health`, `/web` Vite+React+Tailw
 - **`EXTRACTION_TEMPERATURE=0.8` cannot be sent as a literal `temperature` request parameter to `claude-sonnet-5`** — verified directly against Anthropic's current API docs: current-generation models reject any non-default `temperature`/`top_p`/`top_k` with an HTTP 400. Omitting the parameter still yields real sampling diversity (the implicit default), so the Phase 3 confidence-scoring design (§5.2, sample agreement) is salvageable, but the extraction runner must never forward `temperature` on `messages.create()`. **Resolve the exact approach (drop the parameter but keep recording the configured value on the `extractions` row for audit purposes? Something else?) before starting Phase 3.**
 - Exact npm package versions are whatever `npm install` resolves within the ranges pinned in `package.json`; see the generated lockfile once installed.
 
-### Checkpoint (STOP HERE — do not proceed to Phase 1 until confirmed)
-- [ ] Supabase bucket `erp-documents` confirmed reachable (confirmed programmatically via the Management API `GET` in this session; `/health`'s live storage check got an explicit `403 Host not in allowlist` from this sandbox's own egress policy — worth a real `/health` hit from your machine)
-- [ ] Railway Postgres (`Postgres-ERP` in "Upwork Portfolio") confirmed reachable from local dev via `DATABASE_PUBLIC_URL` (deployment status confirmed `SUCCESS` in this session; `/health`'s live DB check timed out from this sandbox — this sandbox can't reach it either, so this needs your own check)
+### Checkpoint
+- [ ] Supabase bucket `erp-documents` confirmed reachable (confirmed programmatically via the Management API `GET` in this session; `/health`'s live storage check got an explicit `403 Host not in allowlist` from this sandbox's own egress policy — still worth a real `/health` hit from your machine at some point)
+- [ ] Railway Postgres (`Postgres-ERP` in "Upwork Portfolio") confirmed reachable from local dev via `DATABASE_PUBLIC_URL` (deployment status confirmed `SUCCESS` in this session; `/health`'s live DB check timed out from this sandbox — still worth your own check at some point). **This also blocks applying the Phase 1 migration** — see below.
 - [x] Anthropic API key confirmed working — real key added to `.env`, `/health`'s live check against `api.anthropic.com` returned `ok: true` with `model: "claude-sonnet-5"`. Credit + spend limit confirmed set in-console by the user (2026-07-30).
+- User explicitly instructed to proceed to Phase 1 (2026-07-30) before the first two items above were independently re-confirmed from a network-unrestricted machine — proceeding per that instruction. The two unchecked items above remain open and should be verified when convenient.
+
+## Phase 1 — Schema + synthetic corpus
+
+### Summary
+Full Drizzle schema for all 12 tables from the spec, a generated (but not yet applied — see below) migration, and a 60-document synthetic corpus with a ground-truth manifest for later gold-set seeding.
+
+### Files created/touched
+- `api/src/db/schema.ts` — all 12 tables: `extraction_schemas`, `batches`, `documents`, `pages`, `extractions`, `field_values`, `field_value_rows`, `corrections`, `review_sessions`, `exports`, `gold_set_items`, `accuracy_snapshots`.
+- `api/src/db/migrations/0000_mushy_scourge.sql` — generated via `drizzle-kit generate` (schema-diff only; does not require a live DB connection).
+- `scripts/fieldSpecs.ts` — field/column specs for `invoice`/`receipt`/`purchase_order`, mirroring the `extraction_schemas.fields` jsonb shape; shared between the generator now and real schema seeding later.
+- `scripts/make-synthetic-docs.ts` — generates the 60-document corpus into `/samples` (run via `npm run gen:samples`).
+- `/samples/*.pdf` (60 files) + `/samples/manifest.json` (ground-truth ledger) — generated output, committed.
+- `README.md` — added a "Synthetic data" section per rule 7.
+
+### Corpus composition (verified)
+- 60 PDFs: 15 clean digital, 15 scanned/skewed, 15 multi-page line-item tables, 15 edge cases — 20 invoices / 20 receipts / 20 purchase orders (evenly distributed within each difficulty group).
+- 10 flagged `inDevSubset: true` in the manifest, spanning all four difficulty groups (3 clean, 3 scanned, 2 multipage, 2 edge_case).
+- Edge cases cycle through all four kinds named in the spec: handwriting-in-one-field (rendered as a rasterized italic snippet embedded as an image, not text), two-currencies (one line item printed in € while the header currency says USD), missing-required-field (a required field omitted entirely — `null` in the manifest), and near-duplicate-vendor-name (e.g. "Blackwood Supply Co." vs "Blackwood Supply Co, Inc.").
+- **Verified with `pdfjs-dist`** (temporarily installed with `--no-save` for this check only — not a project dependency yet): a clean doc's text layer extracts all field values (468 chars); a scanned doc's text layer extracts **zero** characters (confirming it's genuinely image-only); the handwriting edge-case doc's text layer contains every field's label and value **except** the one rendered as an image. A multi-page doc's page count is verified as 2 via `pdf-lib`.
+
+### Decisions
+- **PDF-authoring library: `pdf-lib`** (root `dependencies`, alongside `@napi-rs/canvas` for the scanned/handwriting raster rendering) — approved by the user; `pdfjs-dist` (already in the approved stack) only reads/rasterizes existing PDFs, it can't author new ones.
+- `scripts/*.ts` are not an npm workspace (per the repo layout, `/scripts` is a sibling of `/api`/`/web`, not a member) — their dependencies (`pdf-lib`, `@napi-rs/canvas`, `tsx`) live in the **root** `package.json` instead, resolved via Node's normal upward `node_modules` lookup.
+- `drizzle-kit` bumped `^0.28.0` → `^0.31.0` — 0.28.1's config loader broke with `"require is not defined in ES module scope"` under `"type": "module"` + Node 22; the newer version loads cleanly. Same category of fix as the `@anthropic-ai/sdk` bump in Phase 0 (correcting an initial version pin within an already-approved dependency).
+- **The generated migration has not been applied to the live Railway Postgres** — this sandbox cannot reach `sakura.proxy.rlwy.net` (confirmed in Phase 0), so `npm run db:migrate` would just hang/fail here the same way the `/health` DB check does. **Run `npm run db:migrate` (workspace `api`) yourself** once you're on a machine with real network access, before Phase 2 needs these tables to exist for real.
+- Kept the "handwriting" simulation to an italic serif font at a slight rotation rather than sourcing an actual cursive/handwriting font file — avoids adding a font asset (and its licensing considerations) for a difficulty tier that only needs to be "not machine-text," not visually convincing.
+- Line item counts: 3–6 for clean/scanned/edge-case docs, 28–42 for the multipage group (chosen to reliably overflow one page at the current row height/margins — verified to produce exactly 2 pages on the sampled doc).
+
+### Open questions (carried over / new)
+- Temperature/sampling-params incompatibility with `claude-sonnet-5` (from Phase 0) — still unresolved, still a Phase 3 concern.
+- **Migration not yet applied to the live DB** (see Decisions above) — Phase 2 (real ingestion) will need these tables to actually exist; apply before starting that phase.

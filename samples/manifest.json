@@ -1,0 +1,5554 @@
+{
+  "generatedAt": "2026-07-30T22:51:34.348Z",
+  "totalDocuments": 60,
+  "subsetSize": 10,
+  "devSubsetCount": 10,
+  "documents": [
+    {
+      "filename": "invoice_clean_01.pdf",
+      "docType": "invoice",
+      "difficultyGroup": "clean",
+      "inDevSubset": true,
+      "notes": null,
+      "fields": {
+        "invoice_number": "INV-50173",
+        "vendor_name": "Copperline Fabrication",
+        "invoice_date": "2026-05-15",
+        "due_date": "2026-06-01",
+        "currency": "USD",
+        "subtotal": "6922.08",
+        "tax": "553.77",
+        "total": "7475.85"
+      },
+      "lineItems": [
+        {
+          "description": "Hex key set, metric",
+          "quantity": 32,
+          "unit_price": "88.29",
+          "amount": "2825.28"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 2,
+          "unit_price": "114.95",
+          "amount": "229.90"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 24,
+          "unit_price": "126.60",
+          "amount": "3038.40"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 10,
+          "unit_price": "82.85",
+          "amount": "828.50"
+        }
+      ]
+    },
+    {
+      "filename": "receipt_clean_02.pdf",
+      "docType": "receipt",
+      "difficultyGroup": "clean",
+      "inDevSubset": true,
+      "notes": null,
+      "fields": {
+        "receipt_number": "RCPT-362351",
+        "merchant_name": "Maple & Co. Bakery",
+        "transaction_date": "2025-10-28",
+        "payment_method": "debit_card",
+        "subtotal": "9500.42",
+        "tax": "665.03",
+        "total": "10165.45"
+      },
+      "lineItems": [
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 23,
+          "unit_price": "133.20",
+          "amount": "3063.60"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 35,
+          "unit_price": "163.49",
+          "amount": "5722.15"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 11,
+          "unit_price": "64.97",
+          "amount": "714.67"
+        }
+      ]
+    },
+    {
+      "filename": "purchase_order_clean_03.pdf",
+      "docType": "purchase_order",
+      "difficultyGroup": "clean",
+      "inDevSubset": true,
+      "notes": null,
+      "fields": {
+        "po_number": "PO-4831",
+        "vendor_name": "Oakhollow Electrical",
+        "order_date": "2025-10-17",
+        "delivery_date": "2025-11-13",
+        "subtotal": "12799.29",
+        "total": "12799.29",
+        "approved_by": "Jordan Ellery"
+      },
+      "lineItems": [
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 13,
+          "unit_price": "18.58",
+          "amount": "241.54"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 21,
+          "unit_price": "195.35",
+          "amount": "4102.35"
+        },
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 35,
+          "unit_price": "136.96",
+          "amount": "4793.60"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 32,
+          "unit_price": "17.84",
+          "amount": "570.88"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 19,
+          "unit_price": "162.68",
+          "amount": "3090.92"
+        }
+      ]
+    },
+    {
+      "filename": "invoice_clean_04.pdf",
+      "docType": "invoice",
+      "difficultyGroup": "clean",
+      "inDevSubset": false,
+      "notes": null,
+      "fields": {
+        "invoice_number": "INV-45533",
+        "vendor_name": "Cinderpath Logistics",
+        "invoice_date": "2026-04-02",
+        "due_date": "2026-05-13",
+        "currency": "USD",
+        "subtotal": "9718.50",
+        "tax": "777.48",
+        "total": "10495.98"
+      },
+      "lineItems": [
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 15,
+          "unit_price": "116.34",
+          "amount": "1745.10"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 35,
+          "unit_price": "79.87",
+          "amount": "2795.45"
+        },
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 29,
+          "unit_price": "178.55",
+          "amount": "5177.95"
+        }
+      ]
+    },
+    {
+      "filename": "receipt_clean_05.pdf",
+      "docType": "receipt",
+      "difficultyGroup": "clean",
+      "inDevSubset": false,
+      "notes": null,
+      "fields": {
+        "receipt_number": "RCPT-530823",
+        "merchant_name": "Pinehill Coffee Roasters",
+        "transaction_date": "2026-06-21",
+        "payment_method": "credit_card",
+        "subtotal": "10311.58",
+        "tax": "721.81",
+        "total": "11033.39"
+      },
+      "lineItems": [
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 36,
+          "unit_price": "179.23",
+          "amount": "6452.28"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 14,
+          "unit_price": "177.00",
+          "amount": "2478.00"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 13,
+          "unit_price": "45.22",
+          "amount": "587.86"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 8,
+          "unit_price": "99.18",
+          "amount": "793.44"
+        }
+      ]
+    },
+    {
+      "filename": "purchase_order_clean_06.pdf",
+      "docType": "purchase_order",
+      "difficultyGroup": "clean",
+      "inDevSubset": false,
+      "notes": null,
+      "fields": {
+        "po_number": "PO-2887",
+        "vendor_name": "Greystone Hardware",
+        "order_date": "2025-11-10",
+        "delivery_date": "2025-11-17",
+        "subtotal": "12426.26",
+        "total": "12426.26",
+        "approved_by": "Ingrid Solberg"
+      },
+      "lineItems": [
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 5,
+          "unit_price": "88.78",
+          "amount": "443.90"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 34,
+          "unit_price": "49.19",
+          "amount": "1672.46"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 22,
+          "unit_price": "122.70",
+          "amount": "2699.40"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 17,
+          "unit_price": "86.09",
+          "amount": "1463.53"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 23,
+          "unit_price": "176.31",
+          "amount": "4055.13"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 24,
+          "unit_price": "87.16",
+          "amount": "2091.84"
+        }
+      ]
+    },
+    {
+      "filename": "invoice_clean_07.pdf",
+      "docType": "invoice",
+      "difficultyGroup": "clean",
+      "inDevSubset": false,
+      "notes": null,
+      "fields": {
+        "invoice_number": "INV-66726",
+        "vendor_name": "Millbrook Office Supply",
+        "invoice_date": "2026-03-13",
+        "due_date": "2026-04-09",
+        "currency": "USD",
+        "subtotal": "6832.41",
+        "tax": "546.59",
+        "total": "7379.00"
+      },
+      "lineItems": [
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 21,
+          "unit_price": "191.64",
+          "amount": "4024.44"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 40,
+          "unit_price": "22.98",
+          "amount": "919.20"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 39,
+          "unit_price": "48.43",
+          "amount": "1888.77"
+        }
+      ]
+    },
+    {
+      "filename": "receipt_clean_08.pdf",
+      "docType": "receipt",
+      "difficultyGroup": "clean",
+      "inDevSubset": false,
+      "notes": null,
+      "fields": {
+        "receipt_number": "RCPT-720164",
+        "merchant_name": "Brightside Office Depot",
+        "transaction_date": "2026-01-04",
+        "payment_method": "credit_card",
+        "subtotal": "12089.06",
+        "tax": "846.23",
+        "total": "12935.29"
+      },
+      "lineItems": [
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 25,
+          "unit_price": "177.23",
+          "amount": "4430.75"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 25,
+          "unit_price": "87.51",
+          "amount": "2187.75"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 3,
+          "unit_price": "113.40",
+          "amount": "340.20"
+        },
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 36,
+          "unit_price": "142.51",
+          "amount": "5130.36"
+        }
+      ]
+    },
+    {
+      "filename": "purchase_order_clean_09.pdf",
+      "docType": "purchase_order",
+      "difficultyGroup": "clean",
+      "inDevSubset": false,
+      "notes": null,
+      "fields": {
+        "po_number": "PO-5036",
+        "vendor_name": "Millbrook Office Supply",
+        "order_date": "2026-03-24",
+        "delivery_date": "2026-04-09",
+        "subtotal": "8255.92",
+        "total": "8255.92",
+        "approved_by": "Marcus Whitfield"
+      },
+      "lineItems": [
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 39,
+          "unit_price": "70.13",
+          "amount": "2735.07"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 9,
+          "unit_price": "21.81",
+          "amount": "196.29"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 18,
+          "unit_price": "189.02",
+          "amount": "3402.36"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 35,
+          "unit_price": "54.92",
+          "amount": "1922.20"
+        }
+      ]
+    },
+    {
+      "filename": "invoice_clean_10.pdf",
+      "docType": "invoice",
+      "difficultyGroup": "clean",
+      "inDevSubset": false,
+      "notes": null,
+      "fields": {
+        "invoice_number": "INV-83610",
+        "vendor_name": "Harrow & Finch Materials",
+        "invoice_date": "2026-04-20",
+        "due_date": "2026-05-23",
+        "currency": "USD",
+        "subtotal": "5258.72",
+        "tax": "420.70",
+        "total": "5679.42"
+      },
+      "lineItems": [
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 32,
+          "unit_price": "42.43",
+          "amount": "1357.76"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 18,
+          "unit_price": "97.52",
+          "amount": "1755.36"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 30,
+          "unit_price": "71.52",
+          "amount": "2145.60"
+        }
+      ]
+    },
+    {
+      "filename": "receipt_clean_11.pdf",
+      "docType": "receipt",
+      "difficultyGroup": "clean",
+      "inDevSubset": false,
+      "notes": null,
+      "fields": {
+        "receipt_number": "RCPT-870983",
+        "merchant_name": "Redwood Auto Parts",
+        "transaction_date": "2026-06-01",
+        "payment_method": "credit_card",
+        "subtotal": "17789.60",
+        "tax": "1245.27",
+        "total": "19034.87"
+      },
+      "lineItems": [
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 9,
+          "unit_price": "30.03",
+          "amount": "270.27"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 25,
+          "unit_price": "86.30",
+          "amount": "2157.50"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 37,
+          "unit_price": "90.60",
+          "amount": "3352.20"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 38,
+          "unit_price": "105.20",
+          "amount": "3997.60"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 19,
+          "unit_price": "152.52",
+          "amount": "2897.88"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 29,
+          "unit_price": "176.35",
+          "amount": "5114.15"
+        }
+      ]
+    },
+    {
+      "filename": "purchase_order_clean_12.pdf",
+      "docType": "purchase_order",
+      "difficultyGroup": "clean",
+      "inDevSubset": false,
+      "notes": null,
+      "fields": {
+        "po_number": "PO-5907",
+        "vendor_name": "Blackwood Supply Co.",
+        "order_date": "2026-03-30",
+        "delivery_date": "2026-04-18",
+        "subtotal": "1290.60",
+        "total": "1290.60",
+        "approved_by": "Tobias Reinholt"
+      },
+      "lineItems": [
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 7,
+          "unit_price": "55.32",
+          "amount": "387.24"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 10,
+          "unit_price": "4.88",
+          "amount": "48.80"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 20,
+          "unit_price": "12.74",
+          "amount": "254.80"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 21,
+          "unit_price": "28.56",
+          "amount": "599.76"
+        }
+      ]
+    },
+    {
+      "filename": "invoice_clean_13.pdf",
+      "docType": "invoice",
+      "difficultyGroup": "clean",
+      "inDevSubset": false,
+      "notes": null,
+      "fields": {
+        "invoice_number": "INV-56564",
+        "vendor_name": "Oakhollow Electrical",
+        "invoice_date": "2025-10-30",
+        "due_date": "2025-11-21",
+        "currency": "USD",
+        "subtotal": "5180.60",
+        "tax": "414.45",
+        "total": "5595.05"
+      },
+      "lineItems": [
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 4,
+          "unit_price": "174.65",
+          "amount": "698.60"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 24,
+          "unit_price": "87.55",
+          "amount": "2101.20"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 32,
+          "unit_price": "74.40",
+          "amount": "2380.80"
+        }
+      ]
+    },
+    {
+      "filename": "receipt_clean_14.pdf",
+      "docType": "receipt",
+      "difficultyGroup": "clean",
+      "inDevSubset": false,
+      "notes": null,
+      "fields": {
+        "receipt_number": "RCPT-709457",
+        "merchant_name": "Pinehill Coffee Roasters",
+        "transaction_date": "2026-04-01",
+        "payment_method": "debit_card",
+        "subtotal": "7296.47",
+        "tax": "510.75",
+        "total": "7807.22"
+      },
+      "lineItems": [
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 11,
+          "unit_price": "72.23",
+          "amount": "794.53"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 30,
+          "unit_price": "210.52",
+          "amount": "6315.60"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 14,
+          "unit_price": "13.31",
+          "amount": "186.34"
+        }
+      ]
+    },
+    {
+      "filename": "purchase_order_clean_15.pdf",
+      "docType": "purchase_order",
+      "difficultyGroup": "clean",
+      "inDevSubset": false,
+      "notes": null,
+      "fields": {
+        "po_number": "PO-2327",
+        "vendor_name": "Millbrook Office Supply",
+        "order_date": "2026-05-08",
+        "delivery_date": "2026-06-07",
+        "subtotal": "7694.96",
+        "total": "7694.96",
+        "approved_by": "Priya Nandakumar"
+      },
+      "lineItems": [
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 30,
+          "unit_price": "10.34",
+          "amount": "310.20"
+        },
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 5,
+          "unit_price": "71.20",
+          "amount": "356.00"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 8,
+          "unit_price": "39.89",
+          "amount": "319.12"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 37,
+          "unit_price": "104.72",
+          "amount": "3874.64"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 36,
+          "unit_price": "78.75",
+          "amount": "2835.00"
+        }
+      ]
+    },
+    {
+      "filename": "invoice_scanned_01.pdf",
+      "docType": "invoice",
+      "difficultyGroup": "scanned",
+      "inDevSubset": true,
+      "notes": "Image-only page (simulated scan, skewed + speckled) — no native text layer.",
+      "fields": {
+        "invoice_number": "INV-56536",
+        "vendor_name": "Harrow & Finch Materials",
+        "invoice_date": "2025-10-30",
+        "due_date": "2025-11-14",
+        "currency": "USD",
+        "subtotal": "7359.79",
+        "tax": "588.78",
+        "total": "7948.57"
+      },
+      "lineItems": [
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 15,
+          "unit_price": "172.94",
+          "amount": "2594.10"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 39,
+          "unit_price": "24.75",
+          "amount": "965.25"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 38,
+          "unit_price": "60.42",
+          "amount": "2295.96"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 16,
+          "unit_price": "94.03",
+          "amount": "1504.48"
+        }
+      ]
+    },
+    {
+      "filename": "receipt_scanned_02.pdf",
+      "docType": "receipt",
+      "difficultyGroup": "scanned",
+      "inDevSubset": true,
+      "notes": "Image-only page (simulated scan, skewed + speckled) — no native text layer.",
+      "fields": {
+        "receipt_number": "RCPT-838969",
+        "merchant_name": "Cobblestone Print Shop",
+        "transaction_date": "2026-05-14",
+        "payment_method": "cash",
+        "subtotal": "3003.33",
+        "tax": "210.23",
+        "total": "3213.56"
+      },
+      "lineItems": [
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 12,
+          "unit_price": "48.09",
+          "amount": "577.08"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 25,
+          "unit_price": "44.73",
+          "amount": "1118.25"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 24,
+          "unit_price": "54.50",
+          "amount": "1308.00"
+        }
+      ]
+    },
+    {
+      "filename": "purchase_order_scanned_03.pdf",
+      "docType": "purchase_order",
+      "difficultyGroup": "scanned",
+      "inDevSubset": true,
+      "notes": "Image-only page (simulated scan, skewed + speckled) — no native text layer.",
+      "fields": {
+        "po_number": "PO-9566",
+        "vendor_name": "Sable Ridge Traders",
+        "order_date": "2026-02-02",
+        "delivery_date": "2026-02-19",
+        "subtotal": "19365.50",
+        "total": "19365.50",
+        "approved_by": "Priya Nandakumar"
+      },
+      "lineItems": [
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 33,
+          "unit_price": "68.47",
+          "amount": "2259.51"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 12,
+          "unit_price": "180.18",
+          "amount": "2162.16"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 27,
+          "unit_price": "74.37",
+          "amount": "2007.99"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 36,
+          "unit_price": "145.15",
+          "amount": "5225.40"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 31,
+          "unit_price": "178.18",
+          "amount": "5523.58"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 13,
+          "unit_price": "168.22",
+          "amount": "2186.86"
+        }
+      ]
+    },
+    {
+      "filename": "invoice_scanned_04.pdf",
+      "docType": "invoice",
+      "difficultyGroup": "scanned",
+      "inDevSubset": false,
+      "notes": "Image-only page (simulated scan, skewed + speckled) — no native text layer.",
+      "fields": {
+        "invoice_number": "INV-62089",
+        "vendor_name": "Sable Ridge Traders",
+        "invoice_date": "2026-06-28",
+        "due_date": "2026-07-27",
+        "currency": "USD",
+        "subtotal": "12205.60",
+        "tax": "976.45",
+        "total": "13182.05"
+      },
+      "lineItems": [
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 25,
+          "unit_price": "74.94",
+          "amount": "1873.50"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 16,
+          "unit_price": "152.45",
+          "amount": "2439.20"
+        },
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 21,
+          "unit_price": "174.01",
+          "amount": "3654.21"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 15,
+          "unit_price": "96.35",
+          "amount": "1445.25"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 13,
+          "unit_price": "214.88",
+          "amount": "2793.44"
+        }
+      ]
+    },
+    {
+      "filename": "receipt_scanned_05.pdf",
+      "docType": "receipt",
+      "difficultyGroup": "scanned",
+      "inDevSubset": false,
+      "notes": "Image-only page (simulated scan, skewed + speckled) — no native text layer.",
+      "fields": {
+        "receipt_number": "RCPT-707514",
+        "merchant_name": "Northgate Pharmacy",
+        "transaction_date": "2025-09-22",
+        "payment_method": "credit_card",
+        "subtotal": "17363.79",
+        "tax": "1215.47",
+        "total": "18579.26"
+      },
+      "lineItems": [
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 2,
+          "unit_price": "12.08",
+          "amount": "24.16"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 23,
+          "unit_price": "105.48",
+          "amount": "2426.04"
+        },
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 34,
+          "unit_price": "187.40",
+          "amount": "6371.60"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 19,
+          "unit_price": "198.61",
+          "amount": "3773.59"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 40,
+          "unit_price": "119.21",
+          "amount": "4768.40"
+        }
+      ]
+    },
+    {
+      "filename": "purchase_order_scanned_06.pdf",
+      "docType": "purchase_order",
+      "difficultyGroup": "scanned",
+      "inDevSubset": false,
+      "notes": "Image-only page (simulated scan, skewed + speckled) — no native text layer.",
+      "fields": {
+        "po_number": "PO-7439",
+        "vendor_name": "Thistledown Wholesale",
+        "order_date": "2026-05-25",
+        "delivery_date": "2026-06-10",
+        "subtotal": "10920.58",
+        "total": "10920.58",
+        "approved_by": "Marcus Whitfield"
+      },
+      "lineItems": [
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 13,
+          "unit_price": "195.78",
+          "amount": "2545.14"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 24,
+          "unit_price": "133.14",
+          "amount": "3195.36"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 27,
+          "unit_price": "161.69",
+          "amount": "4365.63"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 5,
+          "unit_price": "162.89",
+          "amount": "814.45"
+        }
+      ]
+    },
+    {
+      "filename": "invoice_scanned_07.pdf",
+      "docType": "invoice",
+      "difficultyGroup": "scanned",
+      "inDevSubset": false,
+      "notes": "Image-only page (simulated scan, skewed + speckled) — no native text layer.",
+      "fields": {
+        "invoice_number": "INV-47111",
+        "vendor_name": "Ferncrest Packaging",
+        "invoice_date": "2025-10-01",
+        "due_date": "2025-11-15",
+        "currency": "USD",
+        "subtotal": "8537.10",
+        "tax": "682.97",
+        "total": "9220.07"
+      },
+      "lineItems": [
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 18,
+          "unit_price": "215.94",
+          "amount": "3886.92"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 11,
+          "unit_price": "181.93",
+          "amount": "2001.23"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 31,
+          "unit_price": "85.45",
+          "amount": "2648.95"
+        }
+      ]
+    },
+    {
+      "filename": "receipt_scanned_08.pdf",
+      "docType": "receipt",
+      "difficultyGroup": "scanned",
+      "inDevSubset": false,
+      "notes": "Image-only page (simulated scan, skewed + speckled) — no native text layer.",
+      "fields": {
+        "receipt_number": "RCPT-435122",
+        "merchant_name": "Maple & Co. Bakery",
+        "transaction_date": "2025-10-18",
+        "payment_method": "credit_card",
+        "subtotal": "14941.35",
+        "tax": "1045.89",
+        "total": "15987.24"
+      },
+      "lineItems": [
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 24,
+          "unit_price": "189.90",
+          "amount": "4557.60"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 30,
+          "unit_price": "86.36",
+          "amount": "2590.80"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 10,
+          "unit_price": "86.12",
+          "amount": "861.20"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 24,
+          "unit_price": "215.96",
+          "amount": "5183.04"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 31,
+          "unit_price": "56.41",
+          "amount": "1748.71"
+        }
+      ]
+    },
+    {
+      "filename": "purchase_order_scanned_09.pdf",
+      "docType": "purchase_order",
+      "difficultyGroup": "scanned",
+      "inDevSubset": false,
+      "notes": "Image-only page (simulated scan, skewed + speckled) — no native text layer.",
+      "fields": {
+        "po_number": "PO-6475",
+        "vendor_name": "Millbrook Office Supply",
+        "order_date": "2025-10-31",
+        "delivery_date": "2025-11-18",
+        "subtotal": "19228.40",
+        "total": "19228.40",
+        "approved_by": "Marcus Whitfield"
+      },
+      "lineItems": [
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 34,
+          "unit_price": "93.89",
+          "amount": "3192.26"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 40,
+          "unit_price": "217.89",
+          "amount": "8715.60"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 11,
+          "unit_price": "172.47",
+          "amount": "1897.17"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 31,
+          "unit_price": "169.82",
+          "amount": "5264.42"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 5,
+          "unit_price": "31.79",
+          "amount": "158.95"
+        }
+      ]
+    },
+    {
+      "filename": "invoice_scanned_10.pdf",
+      "docType": "invoice",
+      "difficultyGroup": "scanned",
+      "inDevSubset": false,
+      "notes": "Image-only page (simulated scan, skewed + speckled) — no native text layer.",
+      "fields": {
+        "invoice_number": "INV-31577",
+        "vendor_name": "Copperline Fabrication",
+        "invoice_date": "2026-02-21",
+        "due_date": "2026-03-22",
+        "currency": "USD",
+        "subtotal": "11770.07",
+        "tax": "941.61",
+        "total": "12711.68"
+      },
+      "lineItems": [
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 12,
+          "unit_price": "210.08",
+          "amount": "2520.96"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 34,
+          "unit_price": "71.27",
+          "amount": "2423.18"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 5,
+          "unit_price": "38.44",
+          "amount": "192.20"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 37,
+          "unit_price": "179.29",
+          "amount": "6633.73"
+        }
+      ]
+    },
+    {
+      "filename": "receipt_scanned_11.pdf",
+      "docType": "receipt",
+      "difficultyGroup": "scanned",
+      "inDevSubset": false,
+      "notes": "Image-only page (simulated scan, skewed + speckled) — no native text layer.",
+      "fields": {
+        "receipt_number": "RCPT-959197",
+        "merchant_name": "Northgate Pharmacy",
+        "transaction_date": "2025-09-02",
+        "payment_method": "cash",
+        "subtotal": "11973.71",
+        "tax": "838.16",
+        "total": "12811.87"
+      },
+      "lineItems": [
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 39,
+          "unit_price": "135.80",
+          "amount": "5296.20"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 1,
+          "unit_price": "65.19",
+          "amount": "65.19"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 18,
+          "unit_price": "169.84",
+          "amount": "3057.12"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 10,
+          "unit_price": "189.12",
+          "amount": "1891.20"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 13,
+          "unit_price": "128.00",
+          "amount": "1664.00"
+        }
+      ]
+    },
+    {
+      "filename": "purchase_order_scanned_12.pdf",
+      "docType": "purchase_order",
+      "difficultyGroup": "scanned",
+      "inDevSubset": false,
+      "notes": "Image-only page (simulated scan, skewed + speckled) — no native text layer.",
+      "fields": {
+        "po_number": "PO-2558",
+        "vendor_name": "Rivermark Distribution",
+        "order_date": "2026-01-11",
+        "delivery_date": "2026-01-31",
+        "subtotal": "14969.07",
+        "total": "14969.07",
+        "approved_by": "Jordan Ellery"
+      },
+      "lineItems": [
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 39,
+          "unit_price": "51.93",
+          "amount": "2025.27"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 28,
+          "unit_price": "201.72",
+          "amount": "5648.16"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 30,
+          "unit_price": "43.71",
+          "amount": "1311.30"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 33,
+          "unit_price": "165.63",
+          "amount": "5465.79"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 5,
+          "unit_price": "103.71",
+          "amount": "518.55"
+        }
+      ]
+    },
+    {
+      "filename": "invoice_scanned_13.pdf",
+      "docType": "invoice",
+      "difficultyGroup": "scanned",
+      "inDevSubset": false,
+      "notes": "Image-only page (simulated scan, skewed + speckled) — no native text layer.",
+      "fields": {
+        "invoice_number": "INV-16993",
+        "vendor_name": "Nortonvale Industrial",
+        "invoice_date": "2025-12-06",
+        "due_date": "2026-01-10",
+        "currency": "USD",
+        "subtotal": "13141.03",
+        "tax": "1051.28",
+        "total": "14192.31"
+      },
+      "lineItems": [
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 12,
+          "unit_price": "77.75",
+          "amount": "933.00"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 6,
+          "unit_price": "188.60",
+          "amount": "1131.60"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 24,
+          "unit_price": "125.37",
+          "amount": "3008.88"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 35,
+          "unit_price": "139.73",
+          "amount": "4890.55"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 12,
+          "unit_price": "213.66",
+          "amount": "2563.92"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 39,
+          "unit_price": "15.72",
+          "amount": "613.08"
+        }
+      ]
+    },
+    {
+      "filename": "receipt_scanned_14.pdf",
+      "docType": "receipt",
+      "difficultyGroup": "scanned",
+      "inDevSubset": false,
+      "notes": "Image-only page (simulated scan, skewed + speckled) — no native text layer.",
+      "fields": {
+        "receipt_number": "RCPT-875504",
+        "merchant_name": "Pinehill Coffee Roasters",
+        "transaction_date": "2026-02-23",
+        "payment_method": "cash",
+        "subtotal": "16702.55",
+        "tax": "1169.18",
+        "total": "17871.73"
+      },
+      "lineItems": [
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 36,
+          "unit_price": "190.68",
+          "amount": "6864.48"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 34,
+          "unit_price": "149.60",
+          "amount": "5086.40"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 13,
+          "unit_price": "138.79",
+          "amount": "1804.27"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 21,
+          "unit_price": "109.50",
+          "amount": "2299.50"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 10,
+          "unit_price": "64.79",
+          "amount": "647.90"
+        }
+      ]
+    },
+    {
+      "filename": "purchase_order_scanned_15.pdf",
+      "docType": "purchase_order",
+      "difficultyGroup": "scanned",
+      "inDevSubset": false,
+      "notes": "Image-only page (simulated scan, skewed + speckled) — no native text layer.",
+      "fields": {
+        "po_number": "PO-3334",
+        "vendor_name": "Cinderpath Logistics",
+        "order_date": "2026-03-07",
+        "delivery_date": "2026-03-27",
+        "subtotal": "10570.27",
+        "total": "10570.27",
+        "approved_by": "Marcus Whitfield"
+      },
+      "lineItems": [
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 3,
+          "unit_price": "167.74",
+          "amount": "503.22"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 9,
+          "unit_price": "141.13",
+          "amount": "1270.17"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 36,
+          "unit_price": "164.77",
+          "amount": "5931.72"
+        },
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 16,
+          "unit_price": "23.86",
+          "amount": "381.76"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 12,
+          "unit_price": "149.13",
+          "amount": "1789.56"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 8,
+          "unit_price": "86.73",
+          "amount": "693.84"
+        }
+      ]
+    },
+    {
+      "filename": "invoice_multipage_01.pdf",
+      "docType": "invoice",
+      "difficultyGroup": "multipage",
+      "inDevSubset": true,
+      "notes": "Line items intentionally long enough to span multiple pages.",
+      "fields": {
+        "invoice_number": "INV-93590",
+        "vendor_name": "Rivermark Distribution",
+        "invoice_date": "2026-04-17",
+        "due_date": "2026-05-09",
+        "currency": "USD",
+        "subtotal": "76341.56",
+        "tax": "6107.32",
+        "total": "82448.88"
+      },
+      "lineItems": [
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 9,
+          "unit_price": "194.75",
+          "amount": "1752.75"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 15,
+          "unit_price": "9.29",
+          "amount": "139.35"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 20,
+          "unit_price": "112.39",
+          "amount": "2247.80"
+        },
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 4,
+          "unit_price": "101.60",
+          "amount": "406.40"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 37,
+          "unit_price": "215.04",
+          "amount": "7956.48"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 20,
+          "unit_price": "172.76",
+          "amount": "3455.20"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 1,
+          "unit_price": "151.86",
+          "amount": "151.86"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 11,
+          "unit_price": "200.48",
+          "amount": "2205.28"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 5,
+          "unit_price": "9.37",
+          "amount": "46.85"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 26,
+          "unit_price": "213.29",
+          "amount": "5545.54"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 14,
+          "unit_price": "55.49",
+          "amount": "776.86"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 30,
+          "unit_price": "70.96",
+          "amount": "2128.80"
+        },
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 35,
+          "unit_price": "150.71",
+          "amount": "5274.85"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 39,
+          "unit_price": "191.75",
+          "amount": "7478.25"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 36,
+          "unit_price": "4.88",
+          "amount": "175.68"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 11,
+          "unit_price": "88.25",
+          "amount": "970.75"
+        },
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 21,
+          "unit_price": "94.94",
+          "amount": "1993.74"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 17,
+          "unit_price": "49.56",
+          "amount": "842.52"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 2,
+          "unit_price": "174.17",
+          "amount": "348.34"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 19,
+          "unit_price": "200.88",
+          "amount": "3816.72"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 11,
+          "unit_price": "68.35",
+          "amount": "751.85"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 10,
+          "unit_price": "9.13",
+          "amount": "91.30"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 8,
+          "unit_price": "78.10",
+          "amount": "624.80"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 29,
+          "unit_price": "78.71",
+          "amount": "2282.59"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 40,
+          "unit_price": "12.82",
+          "amount": "512.80"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 6,
+          "unit_price": "179.95",
+          "amount": "1079.70"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 13,
+          "unit_price": "59.30",
+          "amount": "770.90"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 29,
+          "unit_price": "109.80",
+          "amount": "3184.20"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 37,
+          "unit_price": "140.77",
+          "amount": "5208.49"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 3,
+          "unit_price": "167.61",
+          "amount": "502.83"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 4,
+          "unit_price": "215.85",
+          "amount": "863.40"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 13,
+          "unit_price": "183.69",
+          "amount": "2387.97"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 16,
+          "unit_price": "120.81",
+          "amount": "1932.96"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 39,
+          "unit_price": "216.25",
+          "amount": "8433.75"
+        }
+      ]
+    },
+    {
+      "filename": "receipt_multipage_02.pdf",
+      "docType": "receipt",
+      "difficultyGroup": "multipage",
+      "inDevSubset": true,
+      "notes": "Line items intentionally long enough to span multiple pages.",
+      "fields": {
+        "receipt_number": "RCPT-759433",
+        "merchant_name": "Brightside Office Depot",
+        "transaction_date": "2026-03-12",
+        "payment_method": "debit_card",
+        "subtotal": "68751.09",
+        "tax": "4812.58",
+        "total": "73563.67"
+      },
+      "lineItems": [
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 1,
+          "unit_price": "132.27",
+          "amount": "132.27"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 29,
+          "unit_price": "158.44",
+          "amount": "4594.76"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 17,
+          "unit_price": "189.15",
+          "amount": "3215.55"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 3,
+          "unit_price": "187.27",
+          "amount": "561.81"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 39,
+          "unit_price": "47.95",
+          "amount": "1870.05"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 14,
+          "unit_price": "184.18",
+          "amount": "2578.52"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 2,
+          "unit_price": "45.36",
+          "amount": "90.72"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 5,
+          "unit_price": "11.08",
+          "amount": "55.40"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 20,
+          "unit_price": "45.58",
+          "amount": "911.60"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 28,
+          "unit_price": "95.68",
+          "amount": "2679.04"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 20,
+          "unit_price": "119.61",
+          "amount": "2392.20"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 32,
+          "unit_price": "67.84",
+          "amount": "2170.88"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 30,
+          "unit_price": "14.67",
+          "amount": "440.10"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 5,
+          "unit_price": "112.02",
+          "amount": "560.10"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 1,
+          "unit_price": "158.43",
+          "amount": "158.43"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 33,
+          "unit_price": "203.12",
+          "amount": "6702.96"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 40,
+          "unit_price": "157.57",
+          "amount": "6302.80"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 4,
+          "unit_price": "122.13",
+          "amount": "488.52"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 39,
+          "unit_price": "189.37",
+          "amount": "7385.43"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 6,
+          "unit_price": "60.37",
+          "amount": "362.22"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 8,
+          "unit_price": "63.33",
+          "amount": "506.64"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 11,
+          "unit_price": "33.10",
+          "amount": "364.10"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 40,
+          "unit_price": "19.60",
+          "amount": "784.00"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 18,
+          "unit_price": "197.72",
+          "amount": "3558.96"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 22,
+          "unit_price": "204.20",
+          "amount": "4492.40"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 16,
+          "unit_price": "177.08",
+          "amount": "2833.28"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 29,
+          "unit_price": "137.61",
+          "amount": "3990.69"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 15,
+          "unit_price": "12.07",
+          "amount": "181.05"
+        },
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 19,
+          "unit_price": "68.04",
+          "amount": "1292.76"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 27,
+          "unit_price": "69.66",
+          "amount": "1880.82"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 31,
+          "unit_price": "36.13",
+          "amount": "1120.03"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 19,
+          "unit_price": "101.11",
+          "amount": "1921.09"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 13,
+          "unit_price": "167.07",
+          "amount": "2171.91"
+        }
+      ]
+    },
+    {
+      "filename": "purchase_order_multipage_03.pdf",
+      "docType": "purchase_order",
+      "difficultyGroup": "multipage",
+      "inDevSubset": false,
+      "notes": "Line items intentionally long enough to span multiple pages.",
+      "fields": {
+        "po_number": "PO-6232",
+        "vendor_name": "Ashgrove Manufacturing Inc.",
+        "order_date": "2026-02-01",
+        "delivery_date": "2026-02-25",
+        "subtotal": "65710.41",
+        "total": "65710.41",
+        "approved_by": "Tobias Reinholt"
+      },
+      "lineItems": [
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 38,
+          "unit_price": "203.71",
+          "amount": "7740.98"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 23,
+          "unit_price": "112.90",
+          "amount": "2596.70"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 28,
+          "unit_price": "143.99",
+          "amount": "4031.72"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 35,
+          "unit_price": "206.51",
+          "amount": "7227.85"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 34,
+          "unit_price": "155.36",
+          "amount": "5282.24"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 35,
+          "unit_price": "80.43",
+          "amount": "2815.05"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 36,
+          "unit_price": "28.06",
+          "amount": "1010.16"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 39,
+          "unit_price": "7.70",
+          "amount": "300.30"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 7,
+          "unit_price": "113.33",
+          "amount": "793.31"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 27,
+          "unit_price": "37.04",
+          "amount": "1000.08"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 5,
+          "unit_price": "18.40",
+          "amount": "92.00"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 9,
+          "unit_price": "50.46",
+          "amount": "454.14"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 6,
+          "unit_price": "48.14",
+          "amount": "288.84"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 16,
+          "unit_price": "4.60",
+          "amount": "73.60"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 23,
+          "unit_price": "181.07",
+          "amount": "4164.61"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 38,
+          "unit_price": "121.99",
+          "amount": "4635.62"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 21,
+          "unit_price": "77.20",
+          "amount": "1621.20"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 15,
+          "unit_price": "63.75",
+          "amount": "956.25"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 8,
+          "unit_price": "155.61",
+          "amount": "1244.88"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 30,
+          "unit_price": "122.26",
+          "amount": "3667.80"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 6,
+          "unit_price": "26.57",
+          "amount": "159.42"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 13,
+          "unit_price": "164.82",
+          "amount": "2142.66"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 10,
+          "unit_price": "99.11",
+          "amount": "991.10"
+        },
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 4,
+          "unit_price": "124.52",
+          "amount": "498.08"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 10,
+          "unit_price": "50.51",
+          "amount": "505.10"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 18,
+          "unit_price": "115.18",
+          "amount": "2073.24"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 10,
+          "unit_price": "53.15",
+          "amount": "531.50"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 2,
+          "unit_price": "39.38",
+          "amount": "78.76"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 5,
+          "unit_price": "80.04",
+          "amount": "400.20"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 11,
+          "unit_price": "76.51",
+          "amount": "841.61"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 28,
+          "unit_price": "152.63",
+          "amount": "4273.64"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 19,
+          "unit_price": "164.60",
+          "amount": "3127.40"
+        },
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 7,
+          "unit_price": "12.91",
+          "amount": "90.37"
+        }
+      ]
+    },
+    {
+      "filename": "invoice_multipage_04.pdf",
+      "docType": "invoice",
+      "difficultyGroup": "multipage",
+      "inDevSubset": false,
+      "notes": "Line items intentionally long enough to span multiple pages.",
+      "fields": {
+        "invoice_number": "INV-47792",
+        "vendor_name": "Harrow & Finch Materials",
+        "invoice_date": "2025-11-16",
+        "due_date": "2025-12-18",
+        "currency": "USD",
+        "subtotal": "55662.28",
+        "tax": "4452.98",
+        "total": "60115.26"
+      },
+      "lineItems": [
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 9,
+          "unit_price": "99.85",
+          "amount": "898.65"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 18,
+          "unit_price": "35.24",
+          "amount": "634.32"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 4,
+          "unit_price": "93.29",
+          "amount": "373.16"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 27,
+          "unit_price": "133.24",
+          "amount": "3597.48"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 27,
+          "unit_price": "19.94",
+          "amount": "538.38"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 30,
+          "unit_price": "14.45",
+          "amount": "433.50"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 16,
+          "unit_price": "88.47",
+          "amount": "1415.52"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 11,
+          "unit_price": "99.16",
+          "amount": "1090.76"
+        },
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 5,
+          "unit_price": "169.60",
+          "amount": "848.00"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 24,
+          "unit_price": "184.44",
+          "amount": "4426.56"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 29,
+          "unit_price": "143.96",
+          "amount": "4174.84"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 3,
+          "unit_price": "167.94",
+          "amount": "503.82"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 31,
+          "unit_price": "37.20",
+          "amount": "1153.20"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 39,
+          "unit_price": "83.07",
+          "amount": "3239.73"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 38,
+          "unit_price": "16.66",
+          "amount": "633.08"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 29,
+          "unit_price": "43.95",
+          "amount": "1274.55"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 26,
+          "unit_price": "178.81",
+          "amount": "4649.06"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 16,
+          "unit_price": "202.03",
+          "amount": "3232.48"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 1,
+          "unit_price": "161.90",
+          "amount": "161.90"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 7,
+          "unit_price": "96.14",
+          "amount": "672.98"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 26,
+          "unit_price": "31.17",
+          "amount": "810.42"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 37,
+          "unit_price": "82.73",
+          "amount": "3061.01"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 30,
+          "unit_price": "68.09",
+          "amount": "2042.70"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 16,
+          "unit_price": "125.74",
+          "amount": "2011.84"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 15,
+          "unit_price": "44.62",
+          "amount": "669.30"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 28,
+          "unit_price": "17.81",
+          "amount": "498.68"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 4,
+          "unit_price": "67.36",
+          "amount": "269.44"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 18,
+          "unit_price": "208.16",
+          "amount": "3746.88"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 38,
+          "unit_price": "15.74",
+          "amount": "598.12"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 21,
+          "unit_price": "141.14",
+          "amount": "2963.94"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 17,
+          "unit_price": "91.96",
+          "amount": "1563.32"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 21,
+          "unit_price": "165.46",
+          "amount": "3474.66"
+        }
+      ]
+    },
+    {
+      "filename": "receipt_multipage_05.pdf",
+      "docType": "receipt",
+      "difficultyGroup": "multipage",
+      "inDevSubset": false,
+      "notes": "Line items intentionally long enough to span multiple pages.",
+      "fields": {
+        "receipt_number": "RCPT-267491",
+        "merchant_name": "Harborview Fuel Stop",
+        "transaction_date": "2026-05-15",
+        "payment_method": "debit_card",
+        "subtotal": "70601.44",
+        "tax": "4942.10",
+        "total": "75543.54"
+      },
+      "lineItems": [
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 9,
+          "unit_price": "92.36",
+          "amount": "831.24"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 24,
+          "unit_price": "117.51",
+          "amount": "2820.24"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 8,
+          "unit_price": "33.32",
+          "amount": "266.56"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 25,
+          "unit_price": "183.26",
+          "amount": "4581.50"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 38,
+          "unit_price": "154.42",
+          "amount": "5867.96"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 28,
+          "unit_price": "145.90",
+          "amount": "4085.20"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 10,
+          "unit_price": "150.89",
+          "amount": "1508.90"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 15,
+          "unit_price": "37.17",
+          "amount": "557.55"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 17,
+          "unit_price": "45.78",
+          "amount": "778.26"
+        },
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 13,
+          "unit_price": "12.93",
+          "amount": "168.09"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 30,
+          "unit_price": "71.77",
+          "amount": "2153.10"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 11,
+          "unit_price": "81.12",
+          "amount": "892.32"
+        },
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 38,
+          "unit_price": "197.00",
+          "amount": "7486.00"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 32,
+          "unit_price": "82.68",
+          "amount": "2645.76"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 13,
+          "unit_price": "51.52",
+          "amount": "669.76"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 9,
+          "unit_price": "15.53",
+          "amount": "139.77"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 20,
+          "unit_price": "175.65",
+          "amount": "3513.00"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 30,
+          "unit_price": "78.33",
+          "amount": "2349.90"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 19,
+          "unit_price": "188.23",
+          "amount": "3576.37"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 36,
+          "unit_price": "71.92",
+          "amount": "2589.12"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 28,
+          "unit_price": "85.78",
+          "amount": "2401.84"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 2,
+          "unit_price": "214.41",
+          "amount": "428.82"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 28,
+          "unit_price": "35.02",
+          "amount": "980.56"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 8,
+          "unit_price": "181.31",
+          "amount": "1450.48"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 39,
+          "unit_price": "83.25",
+          "amount": "3246.75"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 23,
+          "unit_price": "77.93",
+          "amount": "1792.39"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 8,
+          "unit_price": "27.73",
+          "amount": "221.84"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 11,
+          "unit_price": "51.91",
+          "amount": "571.01"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 2,
+          "unit_price": "217.89",
+          "amount": "435.78"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 5,
+          "unit_price": "77.40",
+          "amount": "387.00"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 8,
+          "unit_price": "21.24",
+          "amount": "169.92"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 11,
+          "unit_price": "35.38",
+          "amount": "389.18"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 24,
+          "unit_price": "149.44",
+          "amount": "3586.56"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 2,
+          "unit_price": "188.54",
+          "amount": "377.08"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 11,
+          "unit_price": "126.39",
+          "amount": "1390.29"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 24,
+          "unit_price": "152.58",
+          "amount": "3661.92"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 31,
+          "unit_price": "40.26",
+          "amount": "1248.06"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 12,
+          "unit_price": "31.78",
+          "amount": "381.36"
+        }
+      ]
+    },
+    {
+      "filename": "purchase_order_multipage_06.pdf",
+      "docType": "purchase_order",
+      "difficultyGroup": "multipage",
+      "inDevSubset": false,
+      "notes": "Line items intentionally long enough to span multiple pages.",
+      "fields": {
+        "po_number": "PO-9792",
+        "vendor_name": "Thistledown Wholesale",
+        "order_date": "2026-01-14",
+        "delivery_date": "2026-01-27",
+        "subtotal": "101303.02",
+        "total": "101303.02",
+        "approved_by": "Tobias Reinholt"
+      },
+      "lineItems": [
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 7,
+          "unit_price": "70.72",
+          "amount": "495.04"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 25,
+          "unit_price": "130.78",
+          "amount": "3269.50"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 23,
+          "unit_price": "69.28",
+          "amount": "1593.44"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 18,
+          "unit_price": "77.83",
+          "amount": "1400.94"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 8,
+          "unit_price": "49.18",
+          "amount": "393.44"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 29,
+          "unit_price": "54.38",
+          "amount": "1577.02"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 10,
+          "unit_price": "61.99",
+          "amount": "619.90"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 5,
+          "unit_price": "9.93",
+          "amount": "49.65"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 32,
+          "unit_price": "85.68",
+          "amount": "2741.76"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 12,
+          "unit_price": "91.49",
+          "amount": "1097.88"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 26,
+          "unit_price": "95.37",
+          "amount": "2479.62"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 31,
+          "unit_price": "55.83",
+          "amount": "1730.73"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 23,
+          "unit_price": "130.91",
+          "amount": "3010.93"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 9,
+          "unit_price": "89.70",
+          "amount": "807.30"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 16,
+          "unit_price": "186.87",
+          "amount": "2989.92"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 29,
+          "unit_price": "104.56",
+          "amount": "3032.24"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 9,
+          "unit_price": "28.43",
+          "amount": "255.87"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 23,
+          "unit_price": "166.18",
+          "amount": "3822.14"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 10,
+          "unit_price": "56.52",
+          "amount": "565.20"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 15,
+          "unit_price": "196.06",
+          "amount": "2940.90"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 38,
+          "unit_price": "23.48",
+          "amount": "892.24"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 40,
+          "unit_price": "179.16",
+          "amount": "7166.40"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 36,
+          "unit_price": "153.80",
+          "amount": "5536.80"
+        },
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 33,
+          "unit_price": "42.71",
+          "amount": "1409.43"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 36,
+          "unit_price": "168.99",
+          "amount": "6083.64"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 37,
+          "unit_price": "136.90",
+          "amount": "5065.30"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 20,
+          "unit_price": "23.57",
+          "amount": "471.40"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 1,
+          "unit_price": "179.32",
+          "amount": "179.32"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 24,
+          "unit_price": "138.28",
+          "amount": "3318.72"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 24,
+          "unit_price": "41.55",
+          "amount": "997.20"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 19,
+          "unit_price": "217.79",
+          "amount": "4138.01"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 27,
+          "unit_price": "161.99",
+          "amount": "4373.73"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 12,
+          "unit_price": "193.82",
+          "amount": "2325.84"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 29,
+          "unit_price": "22.70",
+          "amount": "658.30"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 34,
+          "unit_price": "121.24",
+          "amount": "4122.16"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 9,
+          "unit_price": "176.56",
+          "amount": "1589.04"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 37,
+          "unit_price": "189.72",
+          "amount": "7019.64"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 38,
+          "unit_price": "72.14",
+          "amount": "2741.32"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 33,
+          "unit_price": "18.48",
+          "amount": "609.84"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 27,
+          "unit_price": "186.07",
+          "amount": "5023.89"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 26,
+          "unit_price": "104.13",
+          "amount": "2707.38"
+        }
+      ]
+    },
+    {
+      "filename": "invoice_multipage_07.pdf",
+      "docType": "invoice",
+      "difficultyGroup": "multipage",
+      "inDevSubset": false,
+      "notes": "Line items intentionally long enough to span multiple pages.",
+      "fields": {
+        "invoice_number": "INV-30508",
+        "vendor_name": "Windward Freight Group",
+        "invoice_date": "2026-02-08",
+        "due_date": "2026-03-20",
+        "currency": "USD",
+        "subtotal": "69738.32",
+        "tax": "5579.07",
+        "total": "75317.39"
+      },
+      "lineItems": [
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 6,
+          "unit_price": "92.15",
+          "amount": "552.90"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 27,
+          "unit_price": "210.28",
+          "amount": "5677.56"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 35,
+          "unit_price": "132.54",
+          "amount": "4638.90"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 15,
+          "unit_price": "152.24",
+          "amount": "2283.60"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 2,
+          "unit_price": "102.12",
+          "amount": "204.24"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 8,
+          "unit_price": "182.96",
+          "amount": "1463.68"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 29,
+          "unit_price": "39.27",
+          "amount": "1138.83"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 26,
+          "unit_price": "140.93",
+          "amount": "3664.18"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 15,
+          "unit_price": "71.29",
+          "amount": "1069.35"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 32,
+          "unit_price": "10.68",
+          "amount": "341.76"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 21,
+          "unit_price": "123.68",
+          "amount": "2597.28"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 35,
+          "unit_price": "219.59",
+          "amount": "7685.65"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 4,
+          "unit_price": "72.97",
+          "amount": "291.88"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 17,
+          "unit_price": "147.29",
+          "amount": "2503.93"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 9,
+          "unit_price": "127.56",
+          "amount": "1148.04"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 30,
+          "unit_price": "89.12",
+          "amount": "2673.60"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 2,
+          "unit_price": "61.12",
+          "amount": "122.24"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 40,
+          "unit_price": "159.48",
+          "amount": "6379.20"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 18,
+          "unit_price": "15.57",
+          "amount": "280.26"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 7,
+          "unit_price": "25.27",
+          "amount": "176.89"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 18,
+          "unit_price": "133.82",
+          "amount": "2408.76"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 34,
+          "unit_price": "25.88",
+          "amount": "879.92"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 1,
+          "unit_price": "183.48",
+          "amount": "183.48"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 29,
+          "unit_price": "11.84",
+          "amount": "343.36"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 40,
+          "unit_price": "65.22",
+          "amount": "2608.80"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 1,
+          "unit_price": "11.17",
+          "amount": "11.17"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 40,
+          "unit_price": "110.05",
+          "amount": "4402.00"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 34,
+          "unit_price": "36.47",
+          "amount": "1239.98"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 15,
+          "unit_price": "123.03",
+          "amount": "1845.45"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 38,
+          "unit_price": "96.88",
+          "amount": "3681.44"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 24,
+          "unit_price": "56.13",
+          "amount": "1347.12"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 9,
+          "unit_price": "196.43",
+          "amount": "1767.87"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 12,
+          "unit_price": "110.79",
+          "amount": "1329.48"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 13,
+          "unit_price": "215.04",
+          "amount": "2795.52"
+        }
+      ]
+    },
+    {
+      "filename": "receipt_multipage_08.pdf",
+      "docType": "receipt",
+      "difficultyGroup": "multipage",
+      "inDevSubset": false,
+      "notes": "Line items intentionally long enough to span multiple pages.",
+      "fields": {
+        "receipt_number": "RCPT-726182",
+        "merchant_name": "Harborview Fuel Stop",
+        "transaction_date": "2026-03-12",
+        "payment_method": "debit_card",
+        "subtotal": "88715.17",
+        "tax": "6210.06",
+        "total": "94925.23"
+      },
+      "lineItems": [
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 14,
+          "unit_price": "32.69",
+          "amount": "457.66"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 26,
+          "unit_price": "82.16",
+          "amount": "2136.16"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 39,
+          "unit_price": "50.50",
+          "amount": "1969.50"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 25,
+          "unit_price": "197.67",
+          "amount": "4941.75"
+        },
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 4,
+          "unit_price": "83.73",
+          "amount": "334.92"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 26,
+          "unit_price": "86.95",
+          "amount": "2260.70"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 1,
+          "unit_price": "54.08",
+          "amount": "54.08"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 34,
+          "unit_price": "189.41",
+          "amount": "6439.94"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 18,
+          "unit_price": "198.36",
+          "amount": "3570.48"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 37,
+          "unit_price": "175.72",
+          "amount": "6501.64"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 2,
+          "unit_price": "204.55",
+          "amount": "409.10"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 16,
+          "unit_price": "213.34",
+          "amount": "3413.44"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 24,
+          "unit_price": "102.83",
+          "amount": "2467.92"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 16,
+          "unit_price": "101.26",
+          "amount": "1620.16"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 20,
+          "unit_price": "25.25",
+          "amount": "505.00"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 36,
+          "unit_price": "172.88",
+          "amount": "6223.68"
+        },
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 23,
+          "unit_price": "180.99",
+          "amount": "4162.77"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 30,
+          "unit_price": "97.45",
+          "amount": "2923.50"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 36,
+          "unit_price": "24.07",
+          "amount": "866.52"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 17,
+          "unit_price": "41.83",
+          "amount": "711.11"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 20,
+          "unit_price": "144.30",
+          "amount": "2886.00"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 40,
+          "unit_price": "186.28",
+          "amount": "7451.20"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 21,
+          "unit_price": "112.18",
+          "amount": "2355.78"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 30,
+          "unit_price": "15.84",
+          "amount": "475.20"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 11,
+          "unit_price": "69.75",
+          "amount": "767.25"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 40,
+          "unit_price": "61.98",
+          "amount": "2479.20"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 38,
+          "unit_price": "140.95",
+          "amount": "5356.10"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 32,
+          "unit_price": "147.63",
+          "amount": "4724.16"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 24,
+          "unit_price": "18.25",
+          "amount": "438.00"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 15,
+          "unit_price": "30.74",
+          "amount": "461.10"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 16,
+          "unit_price": "141.74",
+          "amount": "2267.84"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 27,
+          "unit_price": "46.41",
+          "amount": "1253.07"
+        },
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 3,
+          "unit_price": "215.66",
+          "amount": "646.98"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 2,
+          "unit_price": "114.88",
+          "amount": "229.76"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 26,
+          "unit_price": "182.45",
+          "amount": "4743.70"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 4,
+          "unit_price": "52.45",
+          "amount": "209.80"
+        }
+      ]
+    },
+    {
+      "filename": "purchase_order_multipage_09.pdf",
+      "docType": "purchase_order",
+      "difficultyGroup": "multipage",
+      "inDevSubset": false,
+      "notes": "Line items intentionally long enough to span multiple pages.",
+      "fields": {
+        "po_number": "PO-3039",
+        "vendor_name": "Blackwood Supply Company",
+        "order_date": "2026-01-20",
+        "delivery_date": "2026-02-17",
+        "subtotal": "77339.88",
+        "total": "77339.88",
+        "approved_by": "Ingrid Solberg"
+      },
+      "lineItems": [
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 28,
+          "unit_price": "187.69",
+          "amount": "5255.32"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 36,
+          "unit_price": "61.20",
+          "amount": "2203.20"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 4,
+          "unit_price": "43.34",
+          "amount": "173.36"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 20,
+          "unit_price": "73.17",
+          "amount": "1463.40"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 3,
+          "unit_price": "201.37",
+          "amount": "604.11"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 5,
+          "unit_price": "166.72",
+          "amount": "833.60"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 23,
+          "unit_price": "181.78",
+          "amount": "4180.94"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 14,
+          "unit_price": "169.06",
+          "amount": "2366.84"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 20,
+          "unit_price": "15.26",
+          "amount": "305.20"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 31,
+          "unit_price": "17.51",
+          "amount": "542.81"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 31,
+          "unit_price": "60.10",
+          "amount": "1863.10"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 18,
+          "unit_price": "50.81",
+          "amount": "914.58"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 17,
+          "unit_price": "103.02",
+          "amount": "1751.34"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 1,
+          "unit_price": "213.44",
+          "amount": "213.44"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 15,
+          "unit_price": "121.96",
+          "amount": "1829.40"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 39,
+          "unit_price": "141.59",
+          "amount": "5522.01"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 25,
+          "unit_price": "21.30",
+          "amount": "532.50"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 8,
+          "unit_price": "82.65",
+          "amount": "661.20"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 5,
+          "unit_price": "116.61",
+          "amount": "583.05"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 15,
+          "unit_price": "218.34",
+          "amount": "3275.10"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 13,
+          "unit_price": "90.27",
+          "amount": "1173.51"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 12,
+          "unit_price": "178.36",
+          "amount": "2140.32"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 15,
+          "unit_price": "45.24",
+          "amount": "678.60"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 5,
+          "unit_price": "47.04",
+          "amount": "235.20"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 12,
+          "unit_price": "13.09",
+          "amount": "157.08"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 35,
+          "unit_price": "7.84",
+          "amount": "274.40"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 13,
+          "unit_price": "29.42",
+          "amount": "382.46"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 30,
+          "unit_price": "212.46",
+          "amount": "6373.80"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 13,
+          "unit_price": "22.09",
+          "amount": "287.17"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 34,
+          "unit_price": "131.69",
+          "amount": "4477.46"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 4,
+          "unit_price": "143.56",
+          "amount": "574.24"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 16,
+          "unit_price": "126.71",
+          "amount": "2027.36"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 37,
+          "unit_price": "219.33",
+          "amount": "8115.21"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 3,
+          "unit_price": "46.71",
+          "amount": "140.13"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 39,
+          "unit_price": "76.25",
+          "amount": "2973.75"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 27,
+          "unit_price": "146.46",
+          "amount": "3954.42"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 40,
+          "unit_price": "166.89",
+          "amount": "6675.60"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 27,
+          "unit_price": "25.94",
+          "amount": "700.38"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 17,
+          "unit_price": "54.37",
+          "amount": "924.29"
+        }
+      ]
+    },
+    {
+      "filename": "invoice_multipage_10.pdf",
+      "docType": "invoice",
+      "difficultyGroup": "multipage",
+      "inDevSubset": false,
+      "notes": "Line items intentionally long enough to span multiple pages.",
+      "fields": {
+        "invoice_number": "INV-70974",
+        "vendor_name": "Ashgrove Manufacturing",
+        "invoice_date": "2026-02-19",
+        "due_date": "2026-03-15",
+        "currency": "USD",
+        "subtotal": "94393.13",
+        "tax": "7551.45",
+        "total": "101944.58"
+      },
+      "lineItems": [
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 39,
+          "unit_price": "74.08",
+          "amount": "2889.12"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 13,
+          "unit_price": "19.76",
+          "amount": "256.88"
+        },
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 7,
+          "unit_price": "99.38",
+          "amount": "695.66"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 26,
+          "unit_price": "117.00",
+          "amount": "3042.00"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 16,
+          "unit_price": "52.70",
+          "amount": "843.20"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 18,
+          "unit_price": "190.25",
+          "amount": "3424.50"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 11,
+          "unit_price": "95.75",
+          "amount": "1053.25"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 40,
+          "unit_price": "148.46",
+          "amount": "5938.40"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 27,
+          "unit_price": "120.29",
+          "amount": "3247.83"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 8,
+          "unit_price": "123.57",
+          "amount": "988.56"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 40,
+          "unit_price": "103.40",
+          "amount": "4136.00"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 10,
+          "unit_price": "152.68",
+          "amount": "1526.80"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 14,
+          "unit_price": "201.06",
+          "amount": "2814.84"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 16,
+          "unit_price": "97.72",
+          "amount": "1563.52"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 30,
+          "unit_price": "126.39",
+          "amount": "3791.70"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 18,
+          "unit_price": "141.09",
+          "amount": "2539.62"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 20,
+          "unit_price": "158.43",
+          "amount": "3168.60"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 24,
+          "unit_price": "83.31",
+          "amount": "1999.44"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 3,
+          "unit_price": "74.20",
+          "amount": "222.60"
+        },
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 23,
+          "unit_price": "142.95",
+          "amount": "3287.85"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 22,
+          "unit_price": "30.13",
+          "amount": "662.86"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 20,
+          "unit_price": "48.55",
+          "amount": "971.00"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 31,
+          "unit_price": "158.08",
+          "amount": "4900.48"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 25,
+          "unit_price": "147.32",
+          "amount": "3683.00"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 37,
+          "unit_price": "150.77",
+          "amount": "5578.49"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 30,
+          "unit_price": "87.07",
+          "amount": "2612.10"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 6,
+          "unit_price": "70.97",
+          "amount": "425.82"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 35,
+          "unit_price": "132.59",
+          "amount": "4640.65"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 2,
+          "unit_price": "212.93",
+          "amount": "425.86"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 15,
+          "unit_price": "109.87",
+          "amount": "1648.05"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 26,
+          "unit_price": "110.63",
+          "amount": "2876.38"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 26,
+          "unit_price": "21.20",
+          "amount": "551.20"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 40,
+          "unit_price": "210.54",
+          "amount": "8421.60"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 26,
+          "unit_price": "109.33",
+          "amount": "2842.58"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 9,
+          "unit_price": "22.99",
+          "amount": "206.91"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 10,
+          "unit_price": "55.85",
+          "amount": "558.50"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 25,
+          "unit_price": "105.52",
+          "amount": "2638.00"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 20,
+          "unit_price": "89.64",
+          "amount": "1792.80"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 3,
+          "unit_price": "80.57",
+          "amount": "241.71"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 5,
+          "unit_price": "123.22",
+          "amount": "616.10"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 31,
+          "unit_price": "21.57",
+          "amount": "668.67"
+        }
+      ]
+    },
+    {
+      "filename": "receipt_multipage_11.pdf",
+      "docType": "receipt",
+      "difficultyGroup": "multipage",
+      "inDevSubset": false,
+      "notes": "Line items intentionally long enough to span multiple pages.",
+      "fields": {
+        "receipt_number": "RCPT-343251",
+        "merchant_name": "Cobblestone Print Shop",
+        "transaction_date": "2026-06-21",
+        "payment_method": "credit_card",
+        "subtotal": "103102.68",
+        "tax": "7217.19",
+        "total": "110319.87"
+      },
+      "lineItems": [
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 19,
+          "unit_price": "29.17",
+          "amount": "554.23"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 24,
+          "unit_price": "34.16",
+          "amount": "819.84"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 7,
+          "unit_price": "56.35",
+          "amount": "394.45"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 23,
+          "unit_price": "217.94",
+          "amount": "5012.62"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 39,
+          "unit_price": "10.14",
+          "amount": "395.46"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 34,
+          "unit_price": "133.80",
+          "amount": "4549.20"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 27,
+          "unit_price": "60.03",
+          "amount": "1620.81"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 38,
+          "unit_price": "78.83",
+          "amount": "2995.54"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 26,
+          "unit_price": "125.38",
+          "amount": "3259.88"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 15,
+          "unit_price": "152.32",
+          "amount": "2284.80"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 37,
+          "unit_price": "127.01",
+          "amount": "4699.37"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 29,
+          "unit_price": "23.51",
+          "amount": "681.79"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 14,
+          "unit_price": "88.49",
+          "amount": "1238.86"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 37,
+          "unit_price": "105.18",
+          "amount": "3891.66"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 18,
+          "unit_price": "99.76",
+          "amount": "1795.68"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 40,
+          "unit_price": "98.66",
+          "amount": "3946.40"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 16,
+          "unit_price": "73.26",
+          "amount": "1172.16"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 32,
+          "unit_price": "39.48",
+          "amount": "1263.36"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 8,
+          "unit_price": "120.69",
+          "amount": "965.52"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 14,
+          "unit_price": "54.37",
+          "amount": "761.18"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 35,
+          "unit_price": "138.73",
+          "amount": "4855.55"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 15,
+          "unit_price": "192.81",
+          "amount": "2892.15"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 34,
+          "unit_price": "179.07",
+          "amount": "6088.38"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 2,
+          "unit_price": "168.78",
+          "amount": "337.56"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 22,
+          "unit_price": "33.67",
+          "amount": "740.74"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 24,
+          "unit_price": "186.61",
+          "amount": "4478.64"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 38,
+          "unit_price": "218.49",
+          "amount": "8302.62"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 31,
+          "unit_price": "101.32",
+          "amount": "3140.92"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 6,
+          "unit_price": "30.90",
+          "amount": "185.40"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 4,
+          "unit_price": "65.31",
+          "amount": "261.24"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 37,
+          "unit_price": "155.82",
+          "amount": "5765.34"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 31,
+          "unit_price": "214.44",
+          "amount": "6647.64"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 13,
+          "unit_price": "136.95",
+          "amount": "1780.35"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 2,
+          "unit_price": "118.27",
+          "amount": "236.54"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 9,
+          "unit_price": "103.65",
+          "amount": "932.85"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 10,
+          "unit_price": "144.95",
+          "amount": "1449.50"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 20,
+          "unit_price": "48.65",
+          "amount": "973.00"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 3,
+          "unit_price": "182.86",
+          "amount": "548.58"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 11,
+          "unit_price": "158.62",
+          "amount": "1744.82"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 15,
+          "unit_price": "195.69",
+          "amount": "2935.35"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 33,
+          "unit_price": "21.22",
+          "amount": "700.26"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 28,
+          "unit_price": "207.23",
+          "amount": "5802.44"
+        }
+      ]
+    },
+    {
+      "filename": "purchase_order_multipage_12.pdf",
+      "docType": "purchase_order",
+      "difficultyGroup": "multipage",
+      "inDevSubset": false,
+      "notes": "Line items intentionally long enough to span multiple pages.",
+      "fields": {
+        "po_number": "PO-3920",
+        "vendor_name": "Rivermark Distribution",
+        "order_date": "2026-03-17",
+        "delivery_date": "2026-03-25",
+        "subtotal": "88909.65",
+        "total": "88909.65",
+        "approved_by": "Tobias Reinholt"
+      },
+      "lineItems": [
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 12,
+          "unit_price": "85.17",
+          "amount": "1022.04"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 10,
+          "unit_price": "66.25",
+          "amount": "662.50"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 25,
+          "unit_price": "96.01",
+          "amount": "2400.25"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 6,
+          "unit_price": "168.79",
+          "amount": "1012.74"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 27,
+          "unit_price": "17.91",
+          "amount": "483.57"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 35,
+          "unit_price": "86.33",
+          "amount": "3021.55"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 11,
+          "unit_price": "94.93",
+          "amount": "1044.23"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 38,
+          "unit_price": "14.22",
+          "amount": "540.36"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 11,
+          "unit_price": "140.01",
+          "amount": "1540.11"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 26,
+          "unit_price": "133.76",
+          "amount": "3477.76"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 28,
+          "unit_price": "119.52",
+          "amount": "3346.56"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 4,
+          "unit_price": "178.42",
+          "amount": "713.68"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 4,
+          "unit_price": "49.39",
+          "amount": "197.56"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 2,
+          "unit_price": "44.62",
+          "amount": "89.24"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 20,
+          "unit_price": "111.21",
+          "amount": "2224.20"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 22,
+          "unit_price": "5.42",
+          "amount": "119.24"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 7,
+          "unit_price": "164.15",
+          "amount": "1149.05"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 9,
+          "unit_price": "158.59",
+          "amount": "1427.31"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 38,
+          "unit_price": "142.11",
+          "amount": "5400.18"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 11,
+          "unit_price": "215.32",
+          "amount": "2368.52"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 12,
+          "unit_price": "110.29",
+          "amount": "1323.48"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 13,
+          "unit_price": "43.13",
+          "amount": "560.69"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 31,
+          "unit_price": "132.15",
+          "amount": "4096.65"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 27,
+          "unit_price": "140.29",
+          "amount": "3787.83"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 37,
+          "unit_price": "147.83",
+          "amount": "5469.71"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 28,
+          "unit_price": "7.70",
+          "amount": "215.60"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 36,
+          "unit_price": "210.44",
+          "amount": "7575.84"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 12,
+          "unit_price": "32.58",
+          "amount": "390.96"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 19,
+          "unit_price": "87.16",
+          "amount": "1656.04"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 15,
+          "unit_price": "113.37",
+          "amount": "1700.55"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 35,
+          "unit_price": "7.94",
+          "amount": "277.90"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 12,
+          "unit_price": "211.32",
+          "amount": "2535.84"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 19,
+          "unit_price": "32.72",
+          "amount": "621.68"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 18,
+          "unit_price": "159.33",
+          "amount": "2867.94"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 36,
+          "unit_price": "63.53",
+          "amount": "2287.08"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 37,
+          "unit_price": "112.38",
+          "amount": "4158.06"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 29,
+          "unit_price": "209.30",
+          "amount": "6069.70"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 3,
+          "unit_price": "182.30",
+          "amount": "546.90"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 5,
+          "unit_price": "66.11",
+          "amount": "330.55"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 36,
+          "unit_price": "132.70",
+          "amount": "4777.20"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 38,
+          "unit_price": "142.60",
+          "amount": "5418.80"
+        }
+      ]
+    },
+    {
+      "filename": "invoice_multipage_13.pdf",
+      "docType": "invoice",
+      "difficultyGroup": "multipage",
+      "inDevSubset": false,
+      "notes": "Line items intentionally long enough to span multiple pages.",
+      "fields": {
+        "invoice_number": "INV-80855",
+        "vendor_name": "Copperline Fabrication",
+        "invoice_date": "2025-10-26",
+        "due_date": "2025-11-28",
+        "currency": "USD",
+        "subtotal": "64802.38",
+        "tax": "5184.19",
+        "total": "69986.57"
+      },
+      "lineItems": [
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 33,
+          "unit_price": "56.84",
+          "amount": "1875.72"
+        },
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 39,
+          "unit_price": "46.12",
+          "amount": "1798.68"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 26,
+          "unit_price": "109.84",
+          "amount": "2855.84"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 21,
+          "unit_price": "169.86",
+          "amount": "3567.06"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 25,
+          "unit_price": "109.63",
+          "amount": "2740.75"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 28,
+          "unit_price": "195.89",
+          "amount": "5484.92"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 29,
+          "unit_price": "108.85",
+          "amount": "3156.65"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 33,
+          "unit_price": "159.90",
+          "amount": "5276.70"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 33,
+          "unit_price": "215.51",
+          "amount": "7111.83"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 40,
+          "unit_price": "191.76",
+          "amount": "7670.40"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 21,
+          "unit_price": "136.24",
+          "amount": "2861.04"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 2,
+          "unit_price": "20.92",
+          "amount": "41.84"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 1,
+          "unit_price": "31.54",
+          "amount": "31.54"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 34,
+          "unit_price": "66.67",
+          "amount": "2266.78"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 17,
+          "unit_price": "5.06",
+          "amount": "86.02"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 15,
+          "unit_price": "175.01",
+          "amount": "2625.15"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 6,
+          "unit_price": "39.41",
+          "amount": "236.46"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 4,
+          "unit_price": "81.44",
+          "amount": "325.76"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 5,
+          "unit_price": "101.77",
+          "amount": "508.85"
+        },
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 34,
+          "unit_price": "24.61",
+          "amount": "836.74"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 2,
+          "unit_price": "199.25",
+          "amount": "398.50"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 7,
+          "unit_price": "39.12",
+          "amount": "273.84"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 5,
+          "unit_price": "161.66",
+          "amount": "808.30"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 29,
+          "unit_price": "216.26",
+          "amount": "6271.54"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 3,
+          "unit_price": "140.52",
+          "amount": "421.56"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 40,
+          "unit_price": "54.45",
+          "amount": "2178.00"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 19,
+          "unit_price": "128.49",
+          "amount": "2441.31"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 4,
+          "unit_price": "162.65",
+          "amount": "650.60"
+        }
+      ]
+    },
+    {
+      "filename": "receipt_multipage_14.pdf",
+      "docType": "receipt",
+      "difficultyGroup": "multipage",
+      "inDevSubset": false,
+      "notes": "Line items intentionally long enough to span multiple pages.",
+      "fields": {
+        "receipt_number": "RCPT-219061",
+        "merchant_name": "Brightside Office Depot",
+        "transaction_date": "2026-01-31",
+        "payment_method": "credit_card",
+        "subtotal": "75187.88",
+        "tax": "5263.15",
+        "total": "80451.03"
+      },
+      "lineItems": [
+        {
+          "description": "Hex key set, metric",
+          "quantity": 9,
+          "unit_price": "5.88",
+          "amount": "52.92"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 22,
+          "unit_price": "94.91",
+          "amount": "2088.02"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 16,
+          "unit_price": "82.82",
+          "amount": "1325.12"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 10,
+          "unit_price": "202.44",
+          "amount": "2024.40"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 1,
+          "unit_price": "178.52",
+          "amount": "178.52"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 13,
+          "unit_price": "217.03",
+          "amount": "2821.39"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 4,
+          "unit_price": "137.57",
+          "amount": "550.28"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 38,
+          "unit_price": "40.03",
+          "amount": "1521.14"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 20,
+          "unit_price": "199.33",
+          "amount": "3986.60"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 7,
+          "unit_price": "84.17",
+          "amount": "589.19"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 22,
+          "unit_price": "213.15",
+          "amount": "4689.30"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 33,
+          "unit_price": "37.48",
+          "amount": "1236.84"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 38,
+          "unit_price": "218.27",
+          "amount": "8294.26"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 4,
+          "unit_price": "88.80",
+          "amount": "355.20"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 28,
+          "unit_price": "169.59",
+          "amount": "4748.52"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 17,
+          "unit_price": "59.00",
+          "amount": "1003.00"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 19,
+          "unit_price": "199.40",
+          "amount": "3788.60"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 15,
+          "unit_price": "107.61",
+          "amount": "1614.15"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 8,
+          "unit_price": "200.84",
+          "amount": "1606.72"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 39,
+          "unit_price": "169.67",
+          "amount": "6617.13"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 4,
+          "unit_price": "48.22",
+          "amount": "192.88"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 35,
+          "unit_price": "13.42",
+          "amount": "469.70"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 10,
+          "unit_price": "141.27",
+          "amount": "1412.70"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 7,
+          "unit_price": "180.76",
+          "amount": "1265.32"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 13,
+          "unit_price": "198.19",
+          "amount": "2576.47"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 18,
+          "unit_price": "128.75",
+          "amount": "2317.50"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 3,
+          "unit_price": "183.83",
+          "amount": "551.49"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 1,
+          "unit_price": "167.52",
+          "amount": "167.52"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 11,
+          "unit_price": "129.81",
+          "amount": "1427.91"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 20,
+          "unit_price": "70.29",
+          "amount": "1405.80"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 7,
+          "unit_price": "177.18",
+          "amount": "1240.26"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 12,
+          "unit_price": "28.71",
+          "amount": "344.52"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 31,
+          "unit_price": "216.10",
+          "amount": "6699.10"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 1,
+          "unit_price": "147.79",
+          "amount": "147.79"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 13,
+          "unit_price": "70.34",
+          "amount": "914.42"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 4,
+          "unit_price": "120.78",
+          "amount": "483.12"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 4,
+          "unit_price": "37.30",
+          "amount": "149.20"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 19,
+          "unit_price": "183.42",
+          "amount": "3484.98"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 5,
+          "unit_price": "169.18",
+          "amount": "845.90"
+        }
+      ]
+    },
+    {
+      "filename": "purchase_order_multipage_15.pdf",
+      "docType": "purchase_order",
+      "difficultyGroup": "multipage",
+      "inDevSubset": false,
+      "notes": "Line items intentionally long enough to span multiple pages.",
+      "fields": {
+        "po_number": "PO-1861",
+        "vendor_name": "Harrow & Finch Materials",
+        "order_date": "2026-04-13",
+        "delivery_date": "2026-05-07",
+        "subtotal": "85108.72",
+        "total": "85108.72",
+        "approved_by": "Priya Nandakumar"
+      },
+      "lineItems": [
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 27,
+          "unit_price": "202.15",
+          "amount": "5458.05"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 22,
+          "unit_price": "104.93",
+          "amount": "2308.46"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 27,
+          "unit_price": "73.77",
+          "amount": "1991.79"
+        },
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 25,
+          "unit_price": "139.66",
+          "amount": "3491.50"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 33,
+          "unit_price": "129.23",
+          "amount": "4264.59"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 28,
+          "unit_price": "59.48",
+          "amount": "1665.44"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 19,
+          "unit_price": "139.73",
+          "amount": "2654.87"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 22,
+          "unit_price": "53.31",
+          "amount": "1172.82"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 3,
+          "unit_price": "194.55",
+          "amount": "583.65"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 16,
+          "unit_price": "151.44",
+          "amount": "2423.04"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 10,
+          "unit_price": "160.07",
+          "amount": "1600.70"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 31,
+          "unit_price": "169.61",
+          "amount": "5257.91"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 9,
+          "unit_price": "169.99",
+          "amount": "1529.91"
+        },
+        {
+          "description": "Warehouse shelving bracket set",
+          "quantity": 18,
+          "unit_price": "82.27",
+          "amount": "1480.86"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 33,
+          "unit_price": "36.46",
+          "amount": "1203.18"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 19,
+          "unit_price": "171.29",
+          "amount": "3254.51"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 14,
+          "unit_price": "19.44",
+          "amount": "272.16"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 39,
+          "unit_price": "38.07",
+          "amount": "1484.73"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 7,
+          "unit_price": "120.46",
+          "amount": "843.22"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 11,
+          "unit_price": "189.58",
+          "amount": "2085.38"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 32,
+          "unit_price": "199.97",
+          "amount": "6399.04"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 39,
+          "unit_price": "70.32",
+          "amount": "2742.48"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 31,
+          "unit_price": "199.50",
+          "amount": "6184.50"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 34,
+          "unit_price": "165.44",
+          "amount": "5624.96"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 19,
+          "unit_price": "178.83",
+          "amount": "3397.77"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 31,
+          "unit_price": "182.56",
+          "amount": "5659.36"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 27,
+          "unit_price": "219.98",
+          "amount": "5939.46"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 18,
+          "unit_price": "87.68",
+          "amount": "1578.24"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 31,
+          "unit_price": "74.36",
+          "amount": "2305.16"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 6,
+          "unit_price": "41.83",
+          "amount": "250.98"
+        }
+      ]
+    },
+    {
+      "filename": "invoice_edge_case_01.pdf",
+      "docType": "invoice",
+      "difficultyGroup": "edge_case",
+      "inDevSubset": true,
+      "notes": "Field \"vendor_name\" rendered as a handwritten-style image snippet, not extractable text.",
+      "fields": {
+        "invoice_number": "INV-26093",
+        "vendor_name": "Greystone Hardware",
+        "invoice_date": "2025-10-21",
+        "due_date": "2025-12-04",
+        "currency": "USD",
+        "subtotal": "4874.51",
+        "tax": "389.96",
+        "total": "5264.47"
+      },
+      "lineItems": [
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 8,
+          "unit_price": "99.96",
+          "amount": "799.68"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 16,
+          "unit_price": "91.34",
+          "amount": "1461.44"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 18,
+          "unit_price": "121.96",
+          "amount": "2195.28"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 11,
+          "unit_price": "38.01",
+          "amount": "418.11"
+        }
+      ]
+    },
+    {
+      "filename": "receipt_edge_case_02.pdf",
+      "docType": "receipt",
+      "difficultyGroup": "edge_case",
+      "inDevSubset": true,
+      "notes": "Header currency is \"USD\" but line item 1 is printed in EUR (€) — deliberate currency inconsistency.",
+      "fields": {
+        "receipt_number": "RCPT-489595",
+        "merchant_name": "Redwood Auto Parts",
+        "transaction_date": "2026-03-06",
+        "payment_method": "debit_card",
+        "subtotal": "9898.12",
+        "tax": "692.87",
+        "total": "10590.99"
+      },
+      "lineItems": [
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 14,
+          "unit_price": "150.08",
+          "amount": "2101.12"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 34,
+          "unit_price": "87.09",
+          "amount": "2961.06"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 12,
+          "unit_price": "91.98",
+          "amount": "1103.76"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 17,
+          "unit_price": "219.54",
+          "amount": "3732.18"
+        }
+      ]
+    },
+    {
+      "filename": "purchase_order_edge_case_03.pdf",
+      "docType": "purchase_order",
+      "difficultyGroup": "edge_case",
+      "inDevSubset": false,
+      "notes": "Required field \"total\" is not printed anywhere on the document (genuinely absent).",
+      "fields": {
+        "po_number": "PO-9348",
+        "vendor_name": "Cinderpath Logistics",
+        "order_date": "2026-02-06",
+        "delivery_date": "2026-02-26",
+        "subtotal": "14090.35",
+        "total": null,
+        "approved_by": "Ingrid Solberg"
+      },
+      "lineItems": [
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 28,
+          "unit_price": "111.08",
+          "amount": "3110.24"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 22,
+          "unit_price": "211.54",
+          "amount": "4653.88"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 11,
+          "unit_price": "84.45",
+          "amount": "928.95"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 10,
+          "unit_price": "59.75",
+          "amount": "597.50"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 34,
+          "unit_price": "141.17",
+          "amount": "4799.78"
+        }
+      ]
+    },
+    {
+      "filename": "invoice_edge_case_04.pdf",
+      "docType": "invoice",
+      "difficultyGroup": "edge_case",
+      "inDevSubset": false,
+      "notes": "Vendor name is a near-duplicate variant (\"Blackwood Supply Co.\") of another vendor in the corpus — tests dedup/matching.",
+      "fields": {
+        "invoice_number": "INV-40428",
+        "vendor_name": "Blackwood Supply Co.",
+        "invoice_date": "2025-09-26",
+        "due_date": "2025-11-06",
+        "currency": "USD",
+        "subtotal": "7894.54",
+        "tax": "631.56",
+        "total": "8526.10"
+      },
+      "lineItems": [
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 24,
+          "unit_price": "36.51",
+          "amount": "876.24"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 14,
+          "unit_price": "155.86",
+          "amount": "2182.04"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 38,
+          "unit_price": "127.27",
+          "amount": "4836.26"
+        }
+      ]
+    },
+    {
+      "filename": "receipt_edge_case_05.pdf",
+      "docType": "receipt",
+      "difficultyGroup": "edge_case",
+      "inDevSubset": false,
+      "notes": "Field \"merchant_name\" rendered as a handwritten-style image snippet, not extractable text.",
+      "fields": {
+        "receipt_number": "RCPT-936548",
+        "merchant_name": "Cobblestone Print Shop",
+        "transaction_date": "2026-05-22",
+        "payment_method": "credit_card",
+        "subtotal": "13090.73",
+        "tax": "916.35",
+        "total": "14007.08"
+      },
+      "lineItems": [
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 27,
+          "unit_price": "66.61",
+          "amount": "1798.47"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 2,
+          "unit_price": "162.06",
+          "amount": "324.12"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 29,
+          "unit_price": "147.73",
+          "amount": "4284.17"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 21,
+          "unit_price": "77.73",
+          "amount": "1632.33"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 33,
+          "unit_price": "153.08",
+          "amount": "5051.64"
+        }
+      ]
+    },
+    {
+      "filename": "purchase_order_edge_case_06.pdf",
+      "docType": "purchase_order",
+      "difficultyGroup": "edge_case",
+      "inDevSubset": false,
+      "notes": "Header currency is \"USD\" but line item 1 is printed in EUR (€) — deliberate currency inconsistency.",
+      "fields": {
+        "po_number": "PO-1946",
+        "vendor_name": "Windward Freight Group",
+        "order_date": "2026-06-22",
+        "delivery_date": "2026-07-19",
+        "subtotal": "4009.33",
+        "total": "4009.33",
+        "approved_by": "Marcus Whitfield"
+      },
+      "lineItems": [
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 29,
+          "unit_price": "94.21",
+          "amount": "2732.09"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 4,
+          "unit_price": "216.61",
+          "amount": "866.44"
+        },
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 4,
+          "unit_price": "102.70",
+          "amount": "410.80"
+        }
+      ]
+    },
+    {
+      "filename": "invoice_edge_case_07.pdf",
+      "docType": "invoice",
+      "difficultyGroup": "edge_case",
+      "inDevSubset": false,
+      "notes": "Required field \"vendor_name\" is not printed anywhere on the document (genuinely absent).",
+      "fields": {
+        "invoice_number": "INV-53706",
+        "vendor_name": null,
+        "invoice_date": "2026-01-08",
+        "due_date": "2026-02-19",
+        "currency": "USD",
+        "subtotal": "8770.63",
+        "tax": "701.65",
+        "total": "9472.28"
+      },
+      "lineItems": [
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 6,
+          "unit_price": "57.86",
+          "amount": "347.16"
+        },
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 25,
+          "unit_price": "219.29",
+          "amount": "5482.25"
+        },
+        {
+          "description": "Hex key set, metric",
+          "quantity": 18,
+          "unit_price": "38.10",
+          "amount": "685.80"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 16,
+          "unit_price": "101.67",
+          "amount": "1626.72"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 19,
+          "unit_price": "22.52",
+          "amount": "427.88"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 1,
+          "unit_price": "200.82",
+          "amount": "200.82"
+        }
+      ]
+    },
+    {
+      "filename": "receipt_edge_case_08.pdf",
+      "docType": "receipt",
+      "difficultyGroup": "edge_case",
+      "inDevSubset": false,
+      "notes": "Vendor name is a near-duplicate variant (\"Corner Market Deli LLC\") of another vendor in the corpus — tests dedup/matching.",
+      "fields": {
+        "receipt_number": "RCPT-862050",
+        "merchant_name": "Corner Market Deli LLC",
+        "transaction_date": "2026-03-21",
+        "payment_method": "debit_card",
+        "subtotal": "8858.59",
+        "tax": "620.10",
+        "total": "9478.69"
+      },
+      "lineItems": [
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 4,
+          "unit_price": "208.16",
+          "amount": "832.64"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 12,
+          "unit_price": "193.58",
+          "amount": "2322.96"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 30,
+          "unit_price": "42.77",
+          "amount": "1283.10"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 17,
+          "unit_price": "188.89",
+          "amount": "3211.13"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 14,
+          "unit_price": "86.34",
+          "amount": "1208.76"
+        }
+      ]
+    },
+    {
+      "filename": "purchase_order_edge_case_09.pdf",
+      "docType": "purchase_order",
+      "difficultyGroup": "edge_case",
+      "inDevSubset": false,
+      "notes": "Field \"approved_by\" rendered as a handwritten-style image snippet, not extractable text.",
+      "fields": {
+        "po_number": "PO-1945",
+        "vendor_name": "Copperline Fabrication",
+        "order_date": "2026-05-02",
+        "delivery_date": "2026-05-10",
+        "subtotal": "3411.39",
+        "total": "3411.39",
+        "approved_by": "Tobias Reinholt"
+      },
+      "lineItems": [
+        {
+          "description": "Cable management conduit, 10ft",
+          "quantity": 11,
+          "unit_price": "119.75",
+          "amount": "1317.25"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 22,
+          "unit_price": "29.36",
+          "amount": "645.92"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 12,
+          "unit_price": "107.04",
+          "amount": "1284.48"
+        },
+        {
+          "description": "Loading dock bumper pads",
+          "quantity": 3,
+          "unit_price": "54.58",
+          "amount": "163.74"
+        }
+      ]
+    },
+    {
+      "filename": "invoice_edge_case_10.pdf",
+      "docType": "invoice",
+      "difficultyGroup": "edge_case",
+      "inDevSubset": false,
+      "notes": "Header currency is \"USD\" but line item 2 is printed in EUR (€) — deliberate currency inconsistency.",
+      "fields": {
+        "invoice_number": "INV-73044",
+        "vendor_name": "Millbrook Office Supply",
+        "invoice_date": "2026-03-21",
+        "due_date": "2026-04-26",
+        "currency": "USD",
+        "subtotal": "13830.62",
+        "tax": "1106.45",
+        "total": "14937.07"
+      },
+      "lineItems": [
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 38,
+          "unit_price": "163.14",
+          "amount": "6199.32"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 30,
+          "unit_price": "47.48",
+          "amount": "1424.40"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 35,
+          "unit_price": "177.34",
+          "amount": "6206.90"
+        }
+      ]
+    },
+    {
+      "filename": "receipt_edge_case_11.pdf",
+      "docType": "receipt",
+      "difficultyGroup": "edge_case",
+      "inDevSubset": false,
+      "notes": "Required field \"transaction_date\" is not printed anywhere on the document (genuinely absent).",
+      "fields": {
+        "receipt_number": "RCPT-141488",
+        "merchant_name": "Cobblestone Print Shop",
+        "transaction_date": null,
+        "payment_method": "cash",
+        "subtotal": "10516.99",
+        "tax": "736.19",
+        "total": "11253.18"
+      },
+      "lineItems": [
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 15,
+          "unit_price": "102.16",
+          "amount": "1532.40"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 18,
+          "unit_price": "10.89",
+          "amount": "196.02"
+        },
+        {
+          "description": "Forklift replacement forks",
+          "quantity": 38,
+          "unit_price": "153.37",
+          "amount": "5828.06"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 12,
+          "unit_price": "35.04",
+          "amount": "420.48"
+        },
+        {
+          "description": "Safety gloves, size L (pair)",
+          "quantity": 3,
+          "unit_price": "32.27",
+          "amount": "96.81"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 26,
+          "unit_price": "93.97",
+          "amount": "2443.22"
+        }
+      ]
+    },
+    {
+      "filename": "purchase_order_edge_case_12.pdf",
+      "docType": "purchase_order",
+      "difficultyGroup": "edge_case",
+      "inDevSubset": false,
+      "notes": "Vendor name is a near-duplicate variant (\"Blackwood Supply Co, Inc.\") of another vendor in the corpus — tests dedup/matching.",
+      "fields": {
+        "po_number": "PO-7491",
+        "vendor_name": "Blackwood Supply Co, Inc.",
+        "order_date": "2025-12-03",
+        "delivery_date": "2026-01-01",
+        "subtotal": "18347.46",
+        "total": "18347.46",
+        "approved_by": "Jordan Ellery"
+      },
+      "lineItems": [
+        {
+          "description": "Anti-static bubble wrap (100ft roll)",
+          "quantity": 22,
+          "unit_price": "218.58",
+          "amount": "4808.76"
+        },
+        {
+          "description": "Reinforced work gloves (pair)",
+          "quantity": 7,
+          "unit_price": "38.47",
+          "amount": "269.29"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 4,
+          "unit_price": "199.06",
+          "amount": "796.24"
+        },
+        {
+          "description": "Aluminum extrusion, 6ft length",
+          "quantity": 26,
+          "unit_price": "53.30",
+          "amount": "1385.80"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 36,
+          "unit_price": "118.37",
+          "amount": "4261.32"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 35,
+          "unit_price": "195.03",
+          "amount": "6826.05"
+        }
+      ]
+    },
+    {
+      "filename": "invoice_edge_case_13.pdf",
+      "docType": "invoice",
+      "difficultyGroup": "edge_case",
+      "inDevSubset": false,
+      "notes": "Field \"vendor_name\" rendered as a handwritten-style image snippet, not extractable text.",
+      "fields": {
+        "invoice_number": "INV-69715",
+        "vendor_name": "Cinderpath Logistics",
+        "invoice_date": "2025-12-08",
+        "due_date": "2025-12-29",
+        "currency": "USD",
+        "subtotal": "7046.08",
+        "tax": "563.69",
+        "total": "7609.77"
+      },
+      "lineItems": [
+        {
+          "description": "1/2in galvanized steel bolts (box of 100)",
+          "quantity": 4,
+          "unit_price": "174.76",
+          "amount": "699.04"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 27,
+          "unit_price": "81.24",
+          "amount": "2193.48"
+        },
+        {
+          "description": "Pallet wrap, 18in x 1500ft",
+          "quantity": 1,
+          "unit_price": "83.20",
+          "amount": "83.20"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 28,
+          "unit_price": "145.37",
+          "amount": "4070.36"
+        }
+      ]
+    },
+    {
+      "filename": "receipt_edge_case_14.pdf",
+      "docType": "receipt",
+      "difficultyGroup": "edge_case",
+      "inDevSubset": false,
+      "notes": "Header currency is \"USD\" but line item 2 is printed in EUR (€) — deliberate currency inconsistency.",
+      "fields": {
+        "receipt_number": "RCPT-963443",
+        "merchant_name": "Union Street Hardware",
+        "transaction_date": "2026-04-21",
+        "payment_method": "credit_card",
+        "subtotal": "9306.37",
+        "tax": "651.45",
+        "total": "9957.82"
+      },
+      "lineItems": [
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 17,
+          "unit_price": "152.26",
+          "amount": "2588.42"
+        },
+        {
+          "description": "Disposable coveralls (case of 20)",
+          "quantity": 35,
+          "unit_price": "37.19",
+          "amount": "1301.65"
+        },
+        {
+          "description": "Industrial-strength packing tape (roll)",
+          "quantity": 4,
+          "unit_price": "109.35",
+          "amount": "437.40"
+        },
+        {
+          "description": "Warehouse floor marking tape (roll)",
+          "quantity": 18,
+          "unit_price": "125.30",
+          "amount": "2255.40"
+        },
+        {
+          "description": "Heavy-duty zip ties (pack of 100)",
+          "quantity": 9,
+          "unit_price": "147.74",
+          "amount": "1329.66"
+        },
+        {
+          "description": "Stainless steel hex nuts (box of 200)",
+          "quantity": 38,
+          "unit_price": "36.68",
+          "amount": "1393.84"
+        }
+      ]
+    },
+    {
+      "filename": "purchase_order_edge_case_15.pdf",
+      "docType": "purchase_order",
+      "difficultyGroup": "edge_case",
+      "inDevSubset": false,
+      "notes": "Required field \"vendor_name\" is not printed anywhere on the document (genuinely absent).",
+      "fields": {
+        "po_number": "PO-1253",
+        "vendor_name": null,
+        "order_date": "2026-01-26",
+        "delivery_date": "2026-02-04",
+        "subtotal": "10077.56",
+        "total": "10077.56",
+        "approved_by": "Tobias Reinholt"
+      },
+      "lineItems": [
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 35,
+          "unit_price": "208.98",
+          "amount": "7314.30"
+        },
+        {
+          "description": "4ft LED shop light fixture",
+          "quantity": 34,
+          "unit_price": "63.47",
+          "amount": "2157.98"
+        },
+        {
+          "description": "Commercial paper towel rolls (case)",
+          "quantity": 6,
+          "unit_price": "61.96",
+          "amount": "371.76"
+        },
+        {
+          "description": "Corrugated shipping boxes (case of 25)",
+          "quantity": 3,
+          "unit_price": "22.30",
+          "amount": "66.90"
+        },
+        {
+          "description": "Cordless drill battery pack",
+          "quantity": 6,
+          "unit_price": "27.77",
+          "amount": "166.62"
+        }
+      ]
+    }
+  ]
+}
