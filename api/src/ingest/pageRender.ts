@@ -1,15 +1,18 @@
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { createCanvas } from '@napi-rs/canvas';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Node has no DOM Worker; pointing at the bundled worker script keeps pdfjs-dist
-// from trying (and failing) to spin up a browser-style worker thread.
-GlobalWorkerOptions.workerSrc = path.resolve(
-  __dirname,
-  '../../../node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs',
-);
+// from trying (and failing) to spin up a browser-style worker thread. pdfjs-dist
+// loads this via a dynamic import(), which requires a real URL — a raw resolved
+// path works on POSIX (no scheme ambiguity) but breaks on Windows, where a drive
+// letter like "C:\..." gets misparsed as a URL scheme. pathToFileURL is correct
+// on every platform, so use it unconditionally rather than branching on OS.
+GlobalWorkerOptions.workerSrc = pathToFileURL(
+  path.resolve(__dirname, '../../../node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs'),
+).href;
 
 export interface RenderedPage {
   pageNumber: number;
