@@ -1,0 +1,19 @@
+import Fastify from 'fastify';
+import multipart from '@fastify/multipart';
+import { healthRoutes } from './routes/health.js';
+import { schemaRoutes } from './routes/schemas.js';
+import { batchRoutes } from './routes/batches.js';
+
+// Matches the 20MB file_size_limit configured on the Supabase Storage bucket
+// (see PROGRESS.md, Phase 0) so oversized uploads are rejected the same way
+// at both layers.
+const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;
+
+export function buildApp() {
+  const app = Fastify({ logger: true });
+  app.register(multipart, { limits: { fileSize: MAX_FILE_SIZE_BYTES } });
+  app.register(healthRoutes);
+  app.register(schemaRoutes);
+  app.register(batchRoutes);
+  return app;
+}

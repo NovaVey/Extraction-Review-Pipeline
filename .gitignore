@@ -141,3 +141,7 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# tesseract.js decompressed-cache fallback (ocr.ts sets cacheMethod: 'none',
+# so this shouldn't be written, but ignore it defensively either way)
+*.traineddata
