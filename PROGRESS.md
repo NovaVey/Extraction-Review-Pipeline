@@ -324,6 +324,7 @@ First reported result: **auto-accept precision 96.4% (81/84)**, with all 3 misse
 
 **The real number, once the measurement artifact is corrected: auto-accept precision is 100% (84/84) on the current dev-subset** — every field the system has ever auto-accepted without human review has, in fact, been correct. This is a materially better and more accurate headline result than what first printed, and it was only found by treating "97% and my code is done" as a prompt to keep digging rather than a finished answer.
 
-### Checkpoint — pending user action
-- [ ] Pull this fix, re-run `npx tsx scripts/run-eval.ts`, and confirm it now reports **100% (84/84)** auto-accept precision with zero mismatches — the direct, live confirmation that the fix above actually resolves what was hand-verified.
-- Once confirmed, this closes out Phase 7 — the last phase in the original scaffolded plan (ingest → extract → confidence → review → export → eval). Whatever comes after that point is new work, not a continuation of an existing "pending phase."
+### Checkpoint — CLOSED (2026-08-01)
+- [x] Pulled the fix, re-ran `npx tsx scripts/run-eval.ts` for real: **100.0% (84/84)** auto-accept precision, **100.0%** across every doc type (invoice/purchase_order/receipt) and every difficulty group (clean/edge_case/multipage/scanned) — zero mismatches. Confirms the fix resolves exactly what was hand-verified, not just what the code claimed it would do.
+
+This closes Phase 7 — the last phase in the original scaffolded plan (ingest → extract → confidence → review → export → eval). Whatever comes after this point is new work, not a continuation of an existing "pending phase."
