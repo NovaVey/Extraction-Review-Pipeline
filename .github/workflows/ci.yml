@@ -12,13 +12,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Matches package.json's "engines" field (>=20 <21) — the one version this
-      # project actually declares support for, even though later Node versions have
-      # been used without issue during development. CI checks the declared contract,
-      # not just whatever happens to work locally.
+      # Matches package.json's "engines" field. This was originally >=20 <21 (never
+      # actually matching anything this project had run on) until this workflow's own
+      # first run caught the mismatch for real: pdfjs-dist@6.2.108 requires Node
+      # >=22.13.0 or >=24 and fails at runtime on 20 (a genuine API gap, not a
+      # version-check nag — "buffer.transferToFixedLength is not a function"), which
+      # is exactly the kind of finding this check exists to catch. engines was
+      # corrected to match.
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - run: npm install
