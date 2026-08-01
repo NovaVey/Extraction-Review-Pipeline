@@ -351,7 +351,8 @@ The first run of `extract-remaining-corpus.ts` failed on all 50 documents, unifo
 
 **Fixed properly, not just bypassed**: `extractDocument` now takes an optional `{ allowOutsideDevSubset?: boolean }` (default `false`, preserving the existing guard for the API route and `extract-devset.ts` unchanged), and `extract-remaining-corpus.ts` is the one caller that explicitly passes `true` — a narrow, explicit opt-in for the one deliberate, twice-authorized exception, rather than removing a real safety rail that protects every other caller. New test (`api/test/extract/run.test.ts`) covers the override path directly. 167 tests pass, typecheck clean.
 
-### Checkpoint — pending user action
-- [ ] Pull this fix, then run `npx tsx scripts/extract-remaining-corpus.ts` from the repo root. Expect real cost (150 API calls) and real time (this will take a while — each document costs multiple round-trips to Anthropic).
-- [ ] If anything fails partway, the failure list at the end names exactly which documents to retry — re-running the same command only re-attempts what's still missing, not everything.
-- [ ] Once it completes, re-run `npx tsx scripts/run-eval.ts` and see the real, full-corpus auto-accept precision — a materially more defensible number than the 10-document one.
+### Checkpoint — CLOSED (2026-08-01)
+- [x] Ran `extract-remaining-corpus.ts` for real: **50/50 succeeded, 0 failed.** All 60 of 60 documents now have a real extraction.
+- [x] Ran `run-eval.ts` against the full corpus: **60/60 documents evaluated, 0 skipped. Auto-accept precision: 100.0% (496/496)** — 100% across every doc type and every difficulty group, including `scanned`. A materially more defensible result than the 10-document/84-field number: same conclusion, ~6x the sample.
+
+**One real, new thing this run surfaced: automation rate is 99.2% (496/500), not 100%.** Four fields across the full corpus landed at `needs_review` rather than `auto_accepted` — the first time in this entire project that a real, non-empty review queue has existed (every prior checkpoint, since Phase 5, found the queue empty). This is worth following up on directly: it's the natural, organic way to finally close the long-standing gap noted in the Phase 5 checkpoint ("the live accept/correct interaction should get real exercise naturally once a future extraction run... actually produces a `needs_review` item") — the web UI's accept/correct flow has never been exercised against live data, and now there's real data to exercise it against.
