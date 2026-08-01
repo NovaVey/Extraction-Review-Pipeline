@@ -67,6 +67,52 @@ const LINE_ITEM_COLUMN_TYPES: Record<string, FieldType> = {
   amount: 'money',
 };
 
+// A canonical string for one row, used only for the order-independent multiset match
+// below — NOT for the positional per-row breakdown, which still uses valuesMatch's
+// epsilon-based comparison directly. Money/number values are rounded to 2dp rather
+// than epsilon-compared here; every value in this corpus is an exact decimal string,
+// so this is equivalent in practice, but a value that was merely epsilon-close
+// (not exactly equal after rounding) would not collide in the multiset the way it
+// would under valuesMatch's epsilon check.
+function canonicalizeCell(type: FieldType, value: unknown): string {
+  if (value === null || value === undefined) return '__NULL__';
+  switch (type) {
+    case 'money':
+    case 'number': {
+      const numeric = parseNumeric(value as string | number);
+      return numeric === null ? `__UNPARSEABLE__:${String(value)}` : numeric.toFixed(2);
+    }
+    case 'date': {
+      const day = parseDateDay(String(value));
+      return day === null ? `__UNPARSEABLE__:${String(value)}` : String(day);
+    }
+    default:
+      return String(value).trim();
+  }
+}
+
+function rowSignature(row: Record<string, unknown>): string {
+  return Object.entries(LINE_ITEM_COLUMN_TYPES)
+    .map(([key, type]) => canonicalizeCell(type, row[key]))
+    .join('');
+}
+
+// True iff the two arrays contain exactly the same rows the same number of times
+// each, ignoring order — a duplicate row (e.g. the same item ordered twice at
+// different quantities, which produces two genuinely distinct signatures) is still
+// required to appear the same number of times on both sides.
+function multisetEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const counts = new Map<string, number>();
+  for (const s of a) counts.set(s, (counts.get(s) ?? 0) + 1);
+  for (const s of b) {
+    const remaining = counts.get(s);
+    if (!remaining) return false;
+    counts.set(s, remaining - 1);
+  }
+  return true;
+}
+
 export interface LineItemRowComparison {
   rowIndex: number;
   matched: boolean;
@@ -77,12 +123,19 @@ export interface LineItemsComparison {
   extractedRowCount: number;
   goldRowCount: number;
   rowCountMatches: boolean;
+  // Positional (extracted row i vs gold row i) — kept for diagnostic detail (which
+  // specific position differs), but NOT what allMatch is based on; a document whose
+  // rows are extracted in a different but internally-consistent order would show every
+  // row here as non-matching even though nothing is actually wrong. Read this only
+  // alongside allMatch, never as the pass/fail signal on its own.
   rows: LineItemRowComparison[];
-  // True only when row counts match AND every row matches on every column.
-  // Rows are compared positionally (extracted row i vs gold row i) — this corpus's
-  // line items are generated and, in practice, extracted in stable order, so an
-  // alignment algorithm wasn't built for v1. A genuine reordering would show up as
-  // every row after the swap point mismatching, not as a crash.
+  // The real pass/fail signal: true iff row counts match AND the multiset of
+  // extracted rows equals the multiset of gold rows, order-independent. Confirmed
+  // live (Phase 7 checkpoint) that this distinction matters in practice, not just in
+  // theory — three real scanned documents extract every line item correctly but in
+  // reversed row order (plausibly the OCR text layer linearizing scanned tables
+  // differently than a clean PDF's text stream); a positional-only check flagged all
+  // three as complete misses despite zero actual value errors.
   allMatch: boolean;
 }
 
@@ -98,11 +151,15 @@ export function compareLineItems(extractedRows: Array<Record<string, unknown>>, 
     }));
     return { rowIndex: i, matched: columns.every((c) => c.matched), columns };
   });
+  const orderIndependentMatch = multisetEqual(
+    extractedRows.map((r) => rowSignature(r)),
+    goldRows.map((g) => rowSignature(g as unknown as Record<string, unknown>)),
+  );
   return {
     extractedRowCount: extractedRows.length,
     goldRowCount: goldRows.length,
     rowCountMatches,
     rows,
-    allMatch: rowCountMatches && rows.every((r) => r.matched),
+    allMatch: orderIndependentMatch,
   };
 }
