@@ -73,12 +73,20 @@ interface TableFieldResult {
 
 type FieldPassResult = ScalarFieldResult | TableFieldResult;
 
-export async function extractDocument(documentId: string): Promise<ExtractDocumentResult> {
+export interface ExtractDocumentOptions {
+  // Default false: extraction is restricted to the dev subset so the API route and
+  // any future caller can't accidentally trigger a full-corpus (60-doc, ~180-sample)
+  // Anthropic spend. scripts/extract-remaining-corpus.ts is the one deliberate,
+  // user-authorized exception — it passes true explicitly, nothing else should.
+  allowOutsideDevSubset?: boolean;
+}
+
+export async function extractDocument(documentId: string, options?: ExtractDocumentOptions): Promise<ExtractDocumentResult> {
   const [doc] = await db.select().from(documents).where(eq(documents.id, documentId)).limit(1);
   if (!doc) {
     throw new Error(`Document not found: ${documentId}`);
   }
-  if (!doc.inDevSubset) {
+  if (!doc.inDevSubset && !options?.allowOutsideDevSubset) {
     throw new Error(
       `Document ${documentId} is not in the dev subset — extraction is restricted to the dev subset to control API costs`,
     );

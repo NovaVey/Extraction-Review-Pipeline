@@ -162,6 +162,20 @@ describe('extractDocument', () => {
     expect(mocks.extractSample).not.toHaveBeenCalled();
   });
 
+  it('proceeds for a non-dev-subset document when allowOutsideDevSubset is explicitly passed', async () => {
+    mocks.mockDocument.inDevSubset = false;
+    mocks.extractSample.mockResolvedValue({
+      parsed: { invoice_number: 'INV-1', line_items: [{ description: 'widget', quantity: 1, unit_price: '9.99', amount: '9.99' }] },
+      rawResponse: { id: 'r1' },
+      inputTokens: 100,
+      outputTokens: 20,
+      stopReason: 'end_turn',
+    });
+
+    await expect(extractDocument('doc-1', { allowOutsideDevSubset: true })).resolves.toBeDefined();
+    expect(mocks.extractSample).toHaveBeenCalled();
+  });
+
   it('stores the majority value and sample-agreement confidence across samples', async () => {
     mocks.extractSample
       .mockResolvedValueOnce({

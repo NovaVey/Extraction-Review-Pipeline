@@ -346,7 +346,12 @@ User-directed follow-on: the eval's 100% auto-accept precision rests on only 84 
 - No dedicated test file for the new script, consistent with `extract-devset.ts` having none either — both are thin orchestration wrappers around already-tested library code (`extractDocument`).
 - Not yet run — needs the user's machine (real `DATABASE_URL` + `ANTHROPIC_API_KEY`), same as every other live-DB operation this project has needed all along.
 
+### First live attempt found a real gap in the initial design
+The first run of `extract-remaining-corpus.ts` failed on all 50 documents, uniformly: `extractDocument` (`api/src/extract/run.ts`) has its own hard-coded guard — `if (!doc.inDevSubset) throw ...` — rejecting any non-dev-subset document, specifically so the API route (and any other caller) can't accidentally trigger a full-corpus spend. This guard was already in the codebase since Phase 3 and wasn't checked before writing the new script. No API cost was wasted (the guard fires before any model call), but it was a real oversight worth naming rather than glossing over.
+
+**Fixed properly, not just bypassed**: `extractDocument` now takes an optional `{ allowOutsideDevSubset?: boolean }` (default `false`, preserving the existing guard for the API route and `extract-devset.ts` unchanged), and `extract-remaining-corpus.ts` is the one caller that explicitly passes `true` — a narrow, explicit opt-in for the one deliberate, twice-authorized exception, rather than removing a real safety rail that protects every other caller. New test (`api/test/extract/run.test.ts`) covers the override path directly. 167 tests pass, typecheck clean.
+
 ### Checkpoint — pending user action
-- [ ] Pull, then run `npx tsx scripts/extract-remaining-corpus.ts` from the repo root. Expect real cost (150 API calls) and real time (this will take a while — each document costs multiple round-trips to Anthropic).
+- [ ] Pull this fix, then run `npx tsx scripts/extract-remaining-corpus.ts` from the repo root. Expect real cost (150 API calls) and real time (this will take a while — each document costs multiple round-trips to Anthropic).
 - [ ] If anything fails partway, the failure list at the end names exactly which documents to retry — re-running the same command only re-attempts what's still missing, not everything.
 - [ ] Once it completes, re-run `npx tsx scripts/run-eval.ts` and see the real, full-corpus auto-accept precision — a materially more defensible number than the 10-document one.

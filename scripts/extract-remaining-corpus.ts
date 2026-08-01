@@ -4,6 +4,12 @@
 // since the 10-doc subset is meant for cheap iteration), this script skips anything
 // already extracted, so re-running it after a partial/failed run only pays for what's
 // still missing rather than re-charging for work that already succeeded.
+//
+// Passes allowOutsideDevSubset: true to extractDocument — that guard exists
+// specifically to stop the API route (and any other caller) from accidentally
+// triggering a full-corpus spend; this script is the one deliberate exception,
+// explicitly authorized (twice, knowing the real cost both times) rather than
+// something to route around quietly.
 // Run: npx tsx scripts/extract-remaining-corpus.ts
 import { db, pool } from '../api/src/db/client.js';
 import { documents, extractions } from '../api/src/db/schema.js';
@@ -22,7 +28,7 @@ async function main() {
 
   for (const doc of remaining) {
     try {
-      const result = await extractDocument(doc.id);
+      const result = await extractDocument(doc.id, { allowOutsideDevSubset: true });
       succeeded++;
       console.log(`extracted: ${doc.filename} (extractionId=${result.extractionId}, fields=${result.fieldCount})`);
     } catch (err) {
