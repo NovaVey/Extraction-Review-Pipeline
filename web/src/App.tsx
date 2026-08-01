@@ -1,8 +1,19 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { ApiError, acceptField, acceptRow, correctField, correctRow, endReviewSessionBeacon, fetchNextReviewItem, startReviewSession } from './api';
+import {
+  ApiError,
+  acceptField,
+  acceptRow,
+  correctField,
+  correctRow,
+  endReviewSessionBeacon,
+  fetchNextReviewItem,
+  fetchReviewQueueStats,
+  startReviewSession,
+} from './api';
 import { DocViewer } from './components/DocViewer/DocViewer';
+import { QueueSidebar } from './components/QueueSidebar/QueueSidebar';
 import { ReviewPane } from './components/ReviewPane/ReviewPane';
-import type { ActionOutcome, ActionResult, ReviewItem } from './types';
+import type { ActionOutcome, ActionResult, ReviewItem, ReviewQueueStats } from './types';
 
 const REVIEWER_STORAGE_KEY = 'reviewerName';
 
@@ -15,6 +26,7 @@ function App() {
   const [itemsReviewed, setItemsReviewed] = useState(0);
   const [itemsCorrected, setItemsCorrected] = useState(0);
   const [queueState, setQueueState] = useState<QueueState>({ status: 'loading' });
+  const [stats, setStats] = useState<ReviewQueueStats | null>(null);
 
   const beginSession = useCallback((reviewer: string) => {
     setSessionError(null);
@@ -47,6 +59,18 @@ function App() {
     if (reviewSessionId) refetchQueue();
   }, [reviewSessionId, refetchQueue]);
 
+  // Supplementary to the review flow itself — a failed stats fetch shouldn't block
+  // or interrupt reviewing, so it's swallowed rather than surfaced as an ErrorState.
+  const refetchStats = useCallback(() => {
+    fetchReviewQueueStats()
+      .then(setStats)
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (reviewSessionId) refetchStats();
+  }, [reviewSessionId, refetchStats]);
+
   // Shared by every accept/correct control: bump the right local counters and
   // let the next /review/next call naturally advance the queue, rather than
   // guessing client-side what the next item should be.
@@ -57,18 +81,20 @@ function App() {
         setItemsReviewed((n) => n + delta.reviewed);
         setItemsCorrected((n) => n + delta.corrected);
         refetchQueue();
+        refetchStats();
         return { ok: true };
       } catch (err) {
         // Someone/something else already resolved this item (plausible on a
         // shared queue) — it's simply gone now, not a failure worth surfacing.
         if (err instanceof ApiError && err.status === 400 && err.code === 'not_needs_review') {
           refetchQueue();
+          refetchStats();
           return { ok: true };
         }
         return { ok: false, message: "That value didn't save — try again." };
       }
     },
-    [refetchQueue],
+    [refetchQueue, refetchStats],
   );
 
   const handleAcceptField = useCallback(
@@ -151,29 +177,32 @@ function App() {
   return (
     <div className="flex min-h-screen flex-col bg-[#FCFCFD] text-[#101114]">
       <Header reviewerName={reviewerName} itemsReviewed={itemsReviewed} itemsCorrected={itemsCorrected} onChangeReviewer={handleChangeReviewer} />
-      <main className="flex-1 p-4">
-        {sessionError && !reviewSessionId ? (
-          <ErrorState message={sessionError} onRetry={handleRetry} />
-        ) : queueState.status === 'loading' ? (
-          <LoadingState />
-        ) : queueState.status === 'error' ? (
-          <ErrorState message={queueState.message} onRetry={handleRetry} />
-        ) : queueState.item === null ? (
-          <EmptyState />
-        ) : (
-          <div className="grid h-[calc(100vh-6.5rem)] grid-cols-1 gap-4 lg:grid-cols-2">
-            <DocViewer key={queueState.item.fieldValueId} pages={queueState.item.pages} />
-            <ReviewPane
-              key={queueState.item.fieldValueId}
-              item={queueState.item}
-              onAcceptField={handleAcceptField}
-              onCorrectField={handleCorrectField}
-              onAcceptRow={handleAcceptRow}
-              onCorrectRow={handleCorrectRow}
-            />
-          </div>
-        )}
-      </main>
+      <div className="flex flex-1">
+        <QueueSidebar stats={stats} />
+        <main className="flex-1 p-4">
+          {sessionError && !reviewSessionId ? (
+            <ErrorState message={sessionError} onRetry={handleRetry} />
+          ) : queueState.status === 'loading' ? (
+            <LoadingState />
+          ) : queueState.status === 'error' ? (
+            <ErrorState message={queueState.message} onRetry={handleRetry} />
+          ) : queueState.item === null ? (
+            <EmptyState />
+          ) : (
+            <div className="grid h-[calc(100vh-6.5rem)] grid-cols-1 gap-4 lg:grid-cols-2">
+              <DocViewer key={queueState.item.fieldValueId} pages={queueState.item.pages} />
+              <ReviewPane
+                key={queueState.item.fieldValueId}
+                item={queueState.item}
+                onAcceptField={handleAcceptField}
+                onCorrectField={handleCorrectField}
+                onAcceptRow={handleAcceptRow}
+                onCorrectRow={handleCorrectRow}
+              />
+            </div>
+          )}
+        </main>
+      </div>
     </div>
   );
 }

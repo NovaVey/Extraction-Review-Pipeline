@@ -65,6 +65,15 @@ export interface ActionResult {
   status: string;
 }
 
+// Mirrors api/src/review/queue.ts's ReviewQueueStats.
+export interface ReviewQueueStats {
+  totalItems: number;
+  needsReview: number;
+  autoAccepted: number;
+  confirmed: number;
+  corrected: number;
+}
+
 export interface ReviewSession {
   id: string;
   reviewer: string;

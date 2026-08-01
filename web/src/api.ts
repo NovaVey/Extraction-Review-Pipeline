@@ -1,4 +1,4 @@
-import type { ActionResult, ReviewItem, ReviewSession } from './types';
+import type { ActionResult, ReviewItem, ReviewQueueStats, ReviewSession } from './types';
 
 // Distinguishes a structured API error (status code + the route's `error` code,
 // e.g. 'not_needs_review') from a network failure, so callers can react to
@@ -50,6 +50,10 @@ export function endReviewSessionBeacon(reviewSessionId: string): void {
 
 export function fetchNextReviewItem(): Promise<{ item: ReviewItem | null }> {
   return request('/api/review/next');
+}
+
+export function fetchReviewQueueStats(): Promise<ReviewQueueStats> {
+  return request('/api/review/stats');
 }
 
 export function acceptField(fieldValueId: string, reviewer: string, reviewSessionId: string): Promise<ActionResult> {

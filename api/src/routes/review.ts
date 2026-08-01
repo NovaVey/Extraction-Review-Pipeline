@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { getNextReviewItem } from '../review/queue.js';
+import { getNextReviewItem, getReviewQueueStats } from '../review/queue.js';
 import {
   acceptField,
   correctField,
@@ -76,6 +76,11 @@ export async function reviewRoutes(app: FastifyInstance) {
       }
       throw err;
     }
+  });
+
+  app.get('/review/stats', async (_req, reply) => {
+    const stats = await getReviewQueueStats();
+    reply.send(stats);
   });
 
   app.get<{ Querystring: { batchId?: string } }>('/review/next', async (req, reply) => {

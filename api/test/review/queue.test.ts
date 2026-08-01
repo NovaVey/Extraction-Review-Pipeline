@@ -52,7 +52,7 @@ vi.mock('../../src/db/client.js', () => ({
   },
 }));
 
-const { getNextReviewItem } = await import('../../src/review/queue.js');
+const { getNextReviewItem, getReviewQueueStats } = await import('../../src/review/queue.js');
 
 beforeEach(() => {
   mocks.fieldValueRowsCalls = [];
@@ -310,5 +310,45 @@ describe('getNextReviewItem', () => {
     const item = await getNextReviewItem('batch-x');
 
     expect(item?.documentId).toBe('doc-5');
+  });
+});
+
+describe('getReviewQueueStats', () => {
+  it('returns all zeros when there are no extractions at all', async () => {
+    mocks.extractionsCalls = [[]];
+
+    const stats = await getReviewQueueStats();
+
+    expect(stats).toEqual({ totalItems: 0, needsReview: 0, autoAccepted: 0, confirmed: 0, corrected: 0 });
+    // No further queries once there's nothing to count.
+    expect(mocks.fieldValueRowsCalls).toHaveLength(0);
+    expect(mocks.fieldValuesCalls).toHaveLength(0);
+  });
+
+  it('counts by status, ignores a superseded extraction, and folds a still-pending row into needsReview', async () => {
+    mocks.extractionsCalls = [
+      [
+        { documentId: 'doc-1', id: 'ext-1-old', startedAt: new Date('2026-01-01T00:00:00Z') },
+        { documentId: 'doc-1', id: 'ext-1-new', startedAt: new Date('2026-01-02T00:00:00Z') },
+        { documentId: 'doc-2', id: 'ext-2', startedAt: new Date('2026-01-01T00:00:00Z') },
+      ],
+    ];
+    mocks.fieldValueRowsCalls = [[{ fieldValueId: 'fv-table' }]];
+    // Only what the real inArray(extractionId, [current ids]) filter would actually
+    // return — fv-old (belonging to the superseded ext-1-old) is never in this list,
+    // the same way the real query would never fetch it.
+    mocks.fieldValuesCalls = [
+      [
+        { id: 'fv-needs', status: 'needs_review' },
+        { id: 'fv-auto', status: 'auto_accepted' },
+        { id: 'fv-confirmed', status: 'confirmed' },
+        { id: 'fv-corrected', status: 'corrected' },
+        { id: 'fv-table', status: 'auto_accepted' }, // field-level resolved, but still has a pending row
+      ],
+    ];
+
+    const stats = await getReviewQueueStats();
+
+    expect(stats).toEqual({ totalItems: 5, needsReview: 2, autoAccepted: 1, confirmed: 1, corrected: 1 });
   });
 });

@@ -45,6 +45,7 @@ vi.mock('../src/lib/storage.js', () => ({
 
 vi.mock('../src/review/queue.js', () => ({
   getNextReviewItem: vi.fn(),
+  getReviewQueueStats: vi.fn(),
 }));
 
 vi.mock('../src/review/actions.js', async (importOriginal) => {
@@ -61,7 +62,7 @@ vi.mock('../src/review/actions.js', async (importOriginal) => {
 });
 
 const { buildApp } = await import('../src/app.js');
-const { getNextReviewItem } = await import('../src/review/queue.js');
+const { getNextReviewItem, getReviewQueueStats } = await import('../src/review/queue.js');
 const { acceptField, correctField, acceptRow, correctRow, startReviewSession, endReviewSession, NotFoundError, NotNeedsReviewError } =
   await import('../src/review/actions.js');
 
@@ -69,12 +70,26 @@ beforeEach(() => {
   mocks.mockPage = null;
   mocks.downloadObject.mockClear();
   vi.mocked(getNextReviewItem).mockReset();
+  vi.mocked(getReviewQueueStats).mockReset();
   vi.mocked(acceptField).mockReset();
   vi.mocked(correctField).mockReset();
   vi.mocked(acceptRow).mockReset();
   vi.mocked(correctRow).mockReset();
   vi.mocked(startReviewSession).mockReset();
   vi.mocked(endReviewSession).mockReset();
+});
+
+describe('GET /review/stats', () => {
+  it('returns whatever getReviewQueueStats resolves', async () => {
+    const stats = { totalItems: 5, needsReview: 2, autoAccepted: 1, confirmed: 1, corrected: 1 };
+    vi.mocked(getReviewQueueStats).mockResolvedValue(stats);
+
+    const app = buildApp();
+    const res = await app.inject({ method: 'GET', url: '/review/stats' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual(stats);
+  });
 });
 
 describe('GET /review/next', () => {
