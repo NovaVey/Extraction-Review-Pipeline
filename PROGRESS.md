@@ -373,3 +373,28 @@ Since the full corpus is genuinely 100% correct (no naturally-occurring wrong va
 - **Reverted the field itself** back to its exact original state (`auto_accepted`, confidence `1`, `finalValue: null`, `reviewedBy: null`) afterward, confirmed via a direct DB read matching the pre-test baseline exactly — so the corpus's 100% eval result stays accurate. **Deliberately did not delete the two test `corrections` rows** — a "test" reviewer genuinely did take those actions at those timestamps, and silently erasing corrections history (even a mistaken or synthetic entry) runs against the whole point of an audit trail being a truthful, complete record. Two harmless, honestly-labeled (`correctedBy: 'test'`) rows remain in `corrections` permanently as a result.
 
 **This closes the last untested piece of the review UI's live-verification story.** Both action paths — accept and correct, field-level (row-level remains test-only, per Phase 5) — are now confirmed working end-to-end against real, live data, not just the mocked test suite and a Playwright shell smoke test.
+
+## Phase 9 — CI (new work, user-directed)
+
+### Summary
+Every PR through this whole project (9 of them) merged on `mergeable_state: clean` alone — no conflicts — with nothing automatically running the test suite or typecheck first. `.github/workflows/ci.yml` closes that: a GitHub Actions workflow running on every push to `main` and every PR targeting it.
+
+### What it runs
+`npm install` → `npm run typecheck` (all three tsconfigs: api, web, scripts) → `npm run test` (167 tests) → `npm run build` (api + web) → `npm run lint --workspace web` (oxlint).
+
+### Decisions
+- **Node 20, not whatever's locally available.** `package.json`'s `engines` field declares `>=20 <21`, but this project has actually been built and run all session on Node 22 (this sandbox) and Node 24 (the user's machine) without issue — neither has ever hit the declared, supported version. CI intentionally checks the declared contract rather than mirroring whatever happened to work locally; if Node 20 ever fails here, that's a real finding (either the `engines` field is wrong, or there's a genuine Node-20-specific bug), not noise to route around.
+- **No secrets configured, deliberately.** Every test file stubs `DATABASE_URL`/`SUPABASE_*`/`ANTHROPIC_API_KEY` with fake local values before importing app code, specifically so the suite runs without touching real infrastructure — the same property that's let it run identically in this fully offline sandbox all through development. `build` needs nothing at build time either (the web app talks to the API via a dev-server proxy, nothing is baked in). This means CI has zero access to real credentials, by design, not by oversight.
+- **Verified locally before pushing, not just written and hoped**: ran the exact same command sequence (`typecheck`, `test`, `build`, `lint --workspace web`) directly in the sandbox first — `build` specifically had never been run end-to-end this entire session (only `typecheck`/`test` individually), and it needed to be proven to actually succeed before being wired into a required check. All four passed cleanly.
+- Added a CI status badge to `README.md`, linking to the workflow.
+
+### Checkpoint — the workflow's own first run found two real bugs
+
+Checked rather than merged on `mergeable_state` alone (which read `unstable`, not `clean`, for the first time ever on this project — a real signal, followed up on rather than ignored): the PR's own CI run **failed**. Fetched the actual job logs rather than guessing, and both failures turned out real, not flaky:
+
+1. **`pdfjs-dist@6.2.108` genuinely requires Node `>=22.13.0 || >=24`** and fails at runtime on Node 20 — `TypeError: buffer.transferToFixedLength is not a function` inside PDF page rendering, plus a 5-second test timeout on `pageRender.test.ts`'s multipage case. This is exactly the situation the CI decision doc anticipated ("if Node 20 ever fails here, that's a real finding") — confirmed real: `engines` was updated from `>=20 <21` to `>=22.13.0` (matching what every environment this project has actually run on already was), and CI now uses Node 22.
+2. **Two test files (`test/extract/run.test.ts`, `test/ingest/hash.test.ts`) had zero env-var stubbing** and had only ever passed by accident — riding on Vitest sharing a worker thread with some other file that happened to set the stubs first, an ordering this sandbox and the user's machine both happened to get "right" but GitHub's runner didn't. Verified precisely (not guessed) by temporarily hiding this sandbox's own `.env` file (which was masking the same risk locally — `dotenv` reads it regardless of what's `unset` in the shell) and running each of the 13 test files lacking the stub pattern individually; exactly these 2 failed, matching CI exactly. `run.test.ts` got the standard stub block (its `env.js`-importing dependency is loaded via a non-hoisted dynamic `import()`, so ordering the stub before it works); `hash.test.ts` needed its static `import` converted to a dynamic one too, since a static import is hoisted and would load `env.js` before any stub could run regardless of textual position.
+
+Re-verified the full sequence (`typecheck`/`test`/`build`/`lint`) locally with `.env` removed entirely both times — 167/167 pass with zero real credentials present, matching CI's actual conditions exactly, not just "works on this machine."
+
+- [ ] After this merges to `main`, check the **Actions** tab on GitHub and confirm the workflow now actually passes for real on the corrected Node version — the true end-to-end confirmation, not just local re-verification.

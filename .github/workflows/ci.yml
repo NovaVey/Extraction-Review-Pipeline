@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Matches package.json's "engines" field. This was originally >=20 <21 (never
+      # actually matching anything this project had run on) until this workflow's own
+      # first run caught the mismatch for real: pdfjs-dist@6.2.108 requires Node
+      # >=22.13.0 or >=24 and fails at runtime on 20 (a genuine API gap, not a
+      # version-check nag — "buffer.transferToFixedLength is not a function"), which
+      # is exactly the kind of finding this check exists to catch. engines was
+      # corrected to match.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm install
+
+      - run: npm run typecheck
+
+      # No secrets needed: every test file stubs DATABASE_URL/SUPABASE_*/
+      # ANTHROPIC_API_KEY with fake local values before importing app code
+      # specifically so the full suite runs without touching real infrastructure —
+      # the same property that's let this suite run identically in an offline
+      # sandbox all through development.
+      - run: npm run test
+
+      - run: npm run build
+
+      - run: npm run lint --workspace web

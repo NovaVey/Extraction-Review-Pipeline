@@ -2,6 +2,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { documents, batches, extractionSchemas, pages, extractions, fieldValues, fieldValueRows } from '../../src/db/schema.js';
 import type { FieldSpec } from '../../src/extract/schema.js';
 
+// extract/run.js imports env.js directly (for SAMPLE_COUNT) in addition to
+// transitively via the (mocked) db/client.js — env.js itself is never mocked, so it
+// needs real-looking values before the dynamic import below executes. This was
+// missing until a CI run on a different machine (different Vitest worker/thread
+// scheduling than this sandbox or any local machine had ever hit) exposed that this
+// file had only ever passed by accident, riding on another file's stubs being set
+// first in a shared worker — not a guarantee Vitest's docs make.
+process.env.DATABASE_URL ||= 'postgresql://user:pass@localhost:5432/test';
+process.env.SUPABASE_URL ||= 'http://localhost';
+process.env.SUPABASE_SERVICE_KEY ||= 'test-key';
+process.env.ANTHROPIC_API_KEY ||= 'test-key';
+process.env.EXTRACTION_MODEL ||= 'claude-sonnet-5';
+process.env.EXTRACTION_TEMPERATURE ||= '0.8';
+
 const FIELDS: FieldSpec[] = [
   { key: 'invoice_number', label: 'Invoice Number', type: 'string', required: true, autoAcceptThreshold: 0.95, description: 'x' },
   { key: 'vendor_name', label: 'Vendor Name', type: 'string', required: true, autoAcceptThreshold: 0.9, description: 'x' },
