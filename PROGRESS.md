@@ -373,3 +373,20 @@ Since the full corpus is genuinely 100% correct (no naturally-occurring wrong va
 - **Reverted the field itself** back to its exact original state (`auto_accepted`, confidence `1`, `finalValue: null`, `reviewedBy: null`) afterward, confirmed via a direct DB read matching the pre-test baseline exactly — so the corpus's 100% eval result stays accurate. **Deliberately did not delete the two test `corrections` rows** — a "test" reviewer genuinely did take those actions at those timestamps, and silently erasing corrections history (even a mistaken or synthetic entry) runs against the whole point of an audit trail being a truthful, complete record. Two harmless, honestly-labeled (`correctedBy: 'test'`) rows remain in `corrections` permanently as a result.
 
 **This closes the last untested piece of the review UI's live-verification story.** Both action paths — accept and correct, field-level (row-level remains test-only, per Phase 5) — are now confirmed working end-to-end against real, live data, not just the mocked test suite and a Playwright shell smoke test.
+
+## Phase 9 — CI (new work, user-directed)
+
+### Summary
+Every PR through this whole project (9 of them) merged on `mergeable_state: clean` alone — no conflicts — with nothing automatically running the test suite or typecheck first. `.github/workflows/ci.yml` closes that: a GitHub Actions workflow running on every push to `main` and every PR targeting it.
+
+### What it runs
+`npm install` → `npm run typecheck` (all three tsconfigs: api, web, scripts) → `npm run test` (167 tests) → `npm run build` (api + web) → `npm run lint --workspace web` (oxlint).
+
+### Decisions
+- **Node 20, not whatever's locally available.** `package.json`'s `engines` field declares `>=20 <21`, but this project has actually been built and run all session on Node 22 (this sandbox) and Node 24 (the user's machine) without issue — neither has ever hit the declared, supported version. CI intentionally checks the declared contract rather than mirroring whatever happened to work locally; if Node 20 ever fails here, that's a real finding (either the `engines` field is wrong, or there's a genuine Node-20-specific bug), not noise to route around.
+- **No secrets configured, deliberately.** Every test file stubs `DATABASE_URL`/`SUPABASE_*`/`ANTHROPIC_API_KEY` with fake local values before importing app code, specifically so the suite runs without touching real infrastructure — the same property that's let it run identically in this fully offline sandbox all through development. `build` needs nothing at build time either (the web app talks to the API via a dev-server proxy, nothing is baked in). This means CI has zero access to real credentials, by design, not by oversight.
+- **Verified locally before pushing, not just written and hoped**: ran the exact same command sequence (`typecheck`, `test`, `build`, `lint --workspace web`) directly in the sandbox first — `build` specifically had never been run end-to-end this entire session (only `typecheck`/`test` individually), and it needed to be proven to actually succeed before being wired into a required check. All four passed cleanly.
+- Added a CI status badge to `README.md`, linking to the workflow.
+
+### Checkpoint — pending user action
+- [ ] After this merges to `main`, check the **Actions** tab on GitHub and confirm the workflow actually runs and passes for real (not just "the YAML is valid and the commands work locally" — the actual GitHub-hosted runner is the real test).
