@@ -262,12 +262,13 @@ A CSV export of a batch's field values, backed by the `exports` table that's exi
 - 133 tests pass (20 new: `csv.test.ts` pure-function tests, `build.test.ts` mocked-DB tests covering the resolved/unresolved blanking rule for both scalar fields and table rows, a skipped-document count for documents with no extraction or a failed one, and the latest-extraction rule; `exports.route.test.ts` covering the full create→complete flow, the idempotency-key replay, the FK-violation-to-400 mapping, and the download/not-ready paths). Full `npm run typecheck` clean.
 - Live sandbox check: started the real API server and hit the new routes directly — `invalid_body` validation fires correctly for a bad `target`/missing `idempotencyKey`, and a DB-touching request reaches the same `Connection terminated due to connection timeout` seen throughout this project (confirms the route is wired and reaches the DB layer, not a code error) — the same class of check used since Phase 3 for anything this sandbox can't fully exercise.
 
-### Checkpoint — pending user action
-- [ ] Run an export against a real batch: `POST /batches/:id/export` with a body like `{"target": "csv", "idempotencyKey": "<any-unique-string>"}` — confirm it returns `201` with `status: "completed"` and a real `rowCount`.
-- [ ] `GET /exports/:id/download` and open the file — confirm the header row and at least one document's row look right, and that a resolved field shows a real value while spot-checking that the `resolved_field_count`/`total_field_count` columns match what you'd expect for that document.
-- [x] Retry the exact same `POST` with the same `idempotencyKey` — confirm it returns `200` (not `201`) with the *same* export id, not a new one.
-- [ ] If any dev-subset document currently has a `needs_review` field, confirm its cell is blank in the default export and populated when `includeUnresolved: true` is passed.
-- Not proceeding to Phase 7 until these are confirmed, per the workflow rules.
+### Checkpoint — CLOSED (2026-08-01)
+- [x] Ran a real export against the "receipt corpus" batch (`597e2ae8-...`) — `201`, `status: "completed"`, `rowCount: 4`.
+- [x] Downloaded and read the CSV — header and all 4 documents' rows correct, `resolved_field_count`/`total_field_count` both `7` for every row (matches: everything in the dev-subset is currently auto_accepted, consistent with every prior phase's checkpoint), `line_items` correctly RFC-4180-escaped JSON.
+- [x] Retried the same `POST` with the same `idempotencyKey` — `200` (not `201`), identical export id — genuine idempotency confirmed, not just a mocked assertion.
+- [x] Confirmed directly (via a throwaway diagnostic script querying `field_values`/`field_value_rows`, since Drizzle Studio hit an unrelated browser Local-Network-Access block) that **zero** rows anywhere in the database currently sit at `needs_review` — so the blanking-vs-`includeUnresolved` behavior couldn't be exercised against live data, same situation as the Phase 5 checkpoint's empty review queue. Closed on the same basis: the resolved/unresolved split is directly covered by 5 of the 20 export unit tests (including one for table rows specifically), just not against live data right now. The throwaway script was deleted after use, never committed.
+- Two real bugs found and fixed live during this checkpoint — see "Live checkpoint findings" above.
+- Not proceeding to Phase 7 until the user directs it, per the workflow rules.
 
 ### Live checkpoint findings (on the user's machine)
 
