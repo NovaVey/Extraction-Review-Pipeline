@@ -19,6 +19,17 @@ export async function uploadObject(objectPath: string, body: Buffer, contentType
   }
 }
 
+export async function downloadObject(objectPath: string): Promise<Buffer> {
+  const url = `${env.SUPABASE_URL}/storage/v1/object/${env.STORAGE_BUCKET}/${objectPath}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`, apikey: env.SUPABASE_SERVICE_KEY },
+  });
+  if (!res.ok) {
+    throw new Error(`Storage download failed for ${objectPath}: HTTP ${res.status}: ${await res.text()}`);
+  }
+  return Buffer.from(await res.arrayBuffer());
+}
+
 export async function pingStorage() {
   try {
     const url = `${env.SUPABASE_URL}/storage/v1/bucket/${encodeURIComponent(env.STORAGE_BUCKET)}`;
