@@ -5,6 +5,8 @@ import { schemaRoutes } from './routes/schemas.js';
 import { batchRoutes } from './routes/batches.js';
 import { extractRoutes } from './routes/extract.js';
 import { documentRoutes } from './routes/documents.js';
+import { reviewRoutes } from './routes/review.js';
+import { pageRoutes } from './routes/pages.js';
 
 // Matches the 20MB file_size_limit configured on the Supabase Storage bucket
 // (see PROGRESS.md, Phase 0) so oversized uploads are rejected the same way
@@ -19,5 +21,7 @@ export function buildApp() {
   app.register(batchRoutes);
   app.register(extractRoutes);
   app.register(documentRoutes);
+  app.register(reviewRoutes);
+  app.register(pageRoutes);
   return app;
 }
