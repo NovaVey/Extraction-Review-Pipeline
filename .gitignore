@@ -145,3 +145,7 @@ vite.config.ts.timestamp-*
 # tesseract.js decompressed-cache fallback (ocr.ts sets cacheMethod: 'none',
 # so this shouldn't be written, but ignore it defensively either way)
 *.traineddata
+
+# scripts/run-eval.ts output — a report of current DB state against the gold set,
+# not source truth; regenerate by re-running the script.
+/eval-results.json
