@@ -4,6 +4,7 @@ import type { FieldSpec } from '../../src/extract/schema.js';
 
 const FIELDS: FieldSpec[] = [
   { key: 'invoice_number', label: 'Invoice Number', type: 'string', required: true, autoAcceptThreshold: 0.95, description: 'x' },
+  { key: 'vendor_name', label: 'Vendor Name', type: 'string', required: true, autoAcceptThreshold: 0.9, description: 'x' },
   {
     key: 'line_items',
     label: 'Line Items',
@@ -11,8 +12,16 @@ const FIELDS: FieldSpec[] = [
     required: true,
     autoAcceptThreshold: 0.9,
     description: 'x',
-    columns: [{ key: 'description', label: 'Description', type: 'string', required: true }],
+    columns: [
+      { key: 'description', label: 'Description', type: 'string', required: true },
+      { key: 'quantity', label: 'Quantity', type: 'number', required: true },
+      { key: 'unit_price', label: 'Unit Price', type: 'money', required: true },
+      { key: 'amount', label: 'Amount', type: 'money', required: true },
+    ],
   },
+  { key: 'subtotal', label: 'Subtotal', type: 'money', required: true, autoAcceptThreshold: 0.9, description: 'x' },
+  { key: 'tax', label: 'Tax', type: 'money', required: true, autoAcceptThreshold: 0.9, description: 'x' },
+  { key: 'total', label: 'Total', type: 'money', required: true, autoAcceptThreshold: 0.9, description: 'x' },
 ];
 
 const mocks = vi.hoisted(() => ({
@@ -138,7 +147,7 @@ describe('extractDocument', () => {
   beforeEach(() => {
     mocks.mockDocument = { id: 'doc-1', batchId: 'batch-1', inDevSubset: true };
     mocks.mockBatch = { id: 'batch-1', schemaId: 'schema-1' };
-    mocks.mockSchema = { id: 'schema-1', fields: FIELDS };
+    mocks.mockSchema = { id: 'schema-1', docType: 'invoice', fields: FIELDS };
     mocks.mockPages = [{ pageNumber: 1, textContent: 'some text', imagePath: 'batches/x/y/pages/1.png' }];
     mocks.insertedExtractions.length = 0;
     mocks.insertedFieldValues.length = 0;
@@ -156,21 +165,21 @@ describe('extractDocument', () => {
   it('stores the majority value and sample-agreement confidence across samples', async () => {
     mocks.extractSample
       .mockResolvedValueOnce({
-        parsed: { invoice_number: 'INV-1', line_items: [{ description: 'widget' }] },
+        parsed: { invoice_number: 'INV-1', line_items: [{ description: 'widget', quantity: 1, unit_price: '9.99', amount: '9.99' }] },
         rawResponse: { id: 'r1' },
         inputTokens: 100,
         outputTokens: 20,
         stopReason: 'end_turn',
       })
       .mockResolvedValueOnce({
-        parsed: { invoice_number: 'INV-1', line_items: [{ description: 'widget' }] },
+        parsed: { invoice_number: 'INV-1', line_items: [{ description: 'widget', quantity: 1, unit_price: '9.99', amount: '9.99' }] },
         rawResponse: { id: 'r2' },
         inputTokens: 100,
         outputTokens: 20,
         stopReason: 'end_turn',
       })
       .mockResolvedValueOnce({
-        parsed: { invoice_number: 'INV-2', line_items: [{ description: 'widget' }] },
+        parsed: { invoice_number: 'INV-2', line_items: [{ description: 'widget', quantity: 1, unit_price: '9.99', amount: '9.99' }] },
         rawResponse: { id: 'r3' },
         inputTokens: 100,
         outputTokens: 20,
@@ -179,7 +188,7 @@ describe('extractDocument', () => {
 
     const result = await extractDocument('doc-1');
 
-    expect(result).toEqual({ extractionId: 'extraction-1', fieldCount: 2 });
+    expect(result).toEqual({ extractionId: 'extraction-1', fieldCount: FIELDS.length });
     expect(mocks.insertedExtractions[0]).toMatchObject({ status: 'completed', sampleCount: expect.any(Number) });
 
     const invoiceNumberRow = mocks.insertedFieldValues.find((v) => v.fieldKey === 'invoice_number');
@@ -204,5 +213,139 @@ describe('extractDocument', () => {
     expect(mocks.insertedExtractions).toHaveLength(1);
     expect(mocks.insertedExtractions[0]).toMatchObject({ status: 'failed' });
     expect(mocks.insertedFieldValues).toHaveLength(0);
+  });
+
+  it('scores a required scalar field with a null majority value as needs_review with zero confidence', async () => {
+    // No sample sets vendor_name, so every sample's value is null — unanimous
+    // agreement (1) that the field is absent, but it's required, so confidence must
+    // still be forced to 0 rather than rewarded for the agreement.
+    mocks.extractSample.mockResolvedValue({
+      parsed: { invoice_number: 'INV-1', line_items: [], subtotal: '100.00', tax: '8.00', total: '108.00' },
+      rawResponse: { id: 'r' },
+      inputTokens: 100,
+      outputTokens: 20,
+      stopReason: 'end_turn',
+    });
+
+    await extractDocument('doc-1');
+
+    const vendorNameRow = mocks.insertedFieldValues.find((v) => v.fieldKey === 'vendor_name');
+    expect(vendorNameRow).toMatchObject({ confidence: '0', validatorStatus: 'missing', status: 'needs_review' });
+  });
+
+  it('auto-accepts total when it reconciles with subtotal + tax within the field autoAcceptThreshold', async () => {
+    mocks.extractSample.mockResolvedValue({
+      parsed: {
+        invoice_number: 'INV-1',
+        vendor_name: 'Acme Co',
+        line_items: [],
+        subtotal: '100.00',
+        tax: '8.00',
+        total: '108.00',
+      },
+      rawResponse: { id: 'r' },
+      inputTokens: 100,
+      outputTokens: 20,
+      stopReason: 'end_turn',
+    });
+
+    await extractDocument('doc-1');
+
+    const totalRow = mocks.insertedFieldValues.find((v) => v.fieldKey === 'total');
+    expect(totalRow).toMatchObject({ confidence: '1', validatorStatus: 'valid', status: 'auto_accepted' });
+  });
+
+  it('sends total to needs_review when it does not reconcile with subtotal + tax', async () => {
+    mocks.extractSample.mockResolvedValue({
+      parsed: {
+        invoice_number: 'INV-1',
+        vendor_name: 'Acme Co',
+        line_items: [],
+        subtotal: '100.00',
+        tax: '8.00',
+        total: '500.00',
+      },
+      rawResponse: { id: 'r' },
+      inputTokens: 100,
+      outputTokens: 20,
+      stopReason: 'end_turn',
+    });
+
+    await extractDocument('doc-1');
+
+    // Full sample agreement (1) halved once for the one failing cross-field check:
+    // 1 * 0.5 = 0.5, below the field's 0.9 autoAcceptThreshold.
+    const totalRow = mocks.insertedFieldValues.find((v) => v.fieldKey === 'total');
+    expect(totalRow).toMatchObject({ confidence: '0.5', validatorStatus: 'valid', status: 'needs_review' });
+  });
+
+  it('auto-accepts a line item row whose quantity * unit_price reconciles with amount', async () => {
+    mocks.extractSample.mockResolvedValue({
+      parsed: {
+        invoice_number: 'INV-1',
+        vendor_name: 'Acme Co',
+        line_items: [{ description: 'widget', quantity: 2, unit_price: '10.00', amount: '20.00' }],
+        subtotal: '20.00',
+        tax: '0',
+        total: '20.00',
+      },
+      rawResponse: { id: 'r' },
+      inputTokens: 100,
+      outputTokens: 20,
+      stopReason: 'end_turn',
+    });
+
+    await extractDocument('doc-1');
+
+    expect(mocks.insertedFieldValueRows).toHaveLength(1);
+    expect(mocks.insertedFieldValueRows[0]).toMatchObject({ confidence: '1', status: 'auto_accepted' });
+    expect(mocks.insertedFieldValueRows[0].confidenceParts.validatorStatus).toBe('valid');
+  });
+
+  it('sends a line item row to needs_review when quantity * unit_price does not reconcile with amount', async () => {
+    mocks.extractSample.mockResolvedValue({
+      parsed: {
+        invoice_number: 'INV-1',
+        vendor_name: 'Acme Co',
+        // 2 * 10 = 20, but amount claims 999 — the row's own arithmetic doesn't add up.
+        line_items: [{ description: 'widget', quantity: 2, unit_price: '10.00', amount: '999.00' }],
+        subtotal: '20.00',
+        tax: '0',
+        total: '20.00',
+      },
+      rawResponse: { id: 'r' },
+      inputTokens: 100,
+      outputTokens: 20,
+      stopReason: 'end_turn',
+    });
+
+    await extractDocument('doc-1');
+
+    // Full sample agreement (1) halved once for the one failing per-row check: 1 * 0.5 = 0.5.
+    expect(mocks.insertedFieldValueRows[0]).toMatchObject({ confidence: '0.5', status: 'needs_review' });
+    expect(mocks.insertedFieldValueRows[0].confidenceParts.validatorStatus).toBe('valid');
+  });
+
+  it('taints a line item row invalid, forcing zero confidence, when a cell fails its own format check', async () => {
+    mocks.extractSample.mockResolvedValue({
+      parsed: {
+        invoice_number: 'INV-1',
+        vendor_name: 'Acme Co',
+        // quantity isn't a real number — the row is invalid regardless of sample agreement.
+        line_items: [{ description: 'widget', quantity: 'a lot', unit_price: '10.00', amount: '20.00' }],
+        subtotal: '20.00',
+        tax: '0',
+        total: '20.00',
+      },
+      rawResponse: { id: 'r' },
+      inputTokens: 100,
+      outputTokens: 20,
+      stopReason: 'end_turn',
+    });
+
+    await extractDocument('doc-1');
+
+    expect(mocks.insertedFieldValueRows[0]).toMatchObject({ confidence: '0', status: 'needs_review' });
+    expect(mocks.insertedFieldValueRows[0].confidenceParts.validatorStatus).toBe('invalid');
   });
 });

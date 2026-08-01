@@ -4,6 +4,9 @@ import { documents, batches, extractionSchemas, pages, extractions, fieldValues,
 import { downloadObject } from '../lib/storage.js';
 import { env } from '../lib/env.js';
 import { extractSample, PROMPT_VERSION, type ExtractionSampleResult } from './anthropic.js';
+import { validateValue, stripMoneySymbols, type ValidatorStatus } from '../confidence/validate.js';
+import { computeConfidence, decideStatus } from '../confidence/score.js';
+import { computeCrossFieldChecks, type CrossFieldCheckResults } from '../confidence/crossFieldChecks.js';
 import type { FieldSpec, FieldType } from './schema.js';
 
 export interface ExtractDocumentResult {
@@ -34,24 +37,11 @@ export function pickMajority<T>(values: T[]): { value: T; agreement: number } {
   return { value: best.value, agreement: best.count / values.length };
 }
 
-// Basic type-format sanity check, not business-rule validation (e.g. no
-// subtotal+tax=total cross-field checks) — that composition belongs to a later
-// confidence-scoring phase. This just answers "is what we got shaped like what we
-// asked for," which field_values.validatorStatus (NOT NULL) needs populated regardless.
-export function validateField(field: FieldSpec, rawValue: string | null): string {
-  if (rawValue === null) return 'missing';
-  switch (field.type) {
-    case 'date':
-      return Number.isNaN(Date.parse(rawValue)) ? 'invalid' : 'valid';
-    case 'money': {
-      const numeric = rawValue.replace(/[^0-9.-]/g, '');
-      return numeric.length > 0 && !Number.isNaN(Number(numeric)) ? 'valid' : 'invalid';
-    }
-    case 'enum':
-      return (field.enumValues ?? []).includes(rawValue) ? 'valid' : 'invalid';
-    default:
-      return rawValue.trim().length > 0 ? 'valid' : 'invalid';
-  }
+// Thin wrapper kept for callers that already have a FieldSpec in hand — the actual
+// format-check logic lives in confidence/validate.ts so it can also validate
+// individual line-item cell values with the same rules.
+export function validateField(field: FieldSpec, rawValue: string | null): ValidatorStatus {
+  return validateValue(field.type, field.enumValues, rawValue);
 }
 
 // The model transcribes money fields as literally printed ("$106.81"), matching the
@@ -60,9 +50,28 @@ export function validateField(field: FieldSpec, rawValue: string | null): string
 // normalizedValue is comparable to gold-set values later; rawValue keeps the original.
 function normalizeValue(type: FieldType, rawValue: string | null): string | null {
   if (rawValue === null || type !== 'money') return rawValue;
-  const stripped = rawValue.replace(/[^0-9.-]/g, '');
+  const stripped = stripMoneySymbols(rawValue);
   return stripped.length > 0 ? stripped : rawValue;
 }
+
+interface ScalarFieldResult {
+  kind: 'scalar';
+  field: FieldSpec;
+  rawValue: string | null;
+  normalizedValue: string | null;
+  agreement: number;
+  validatorStatus: ValidatorStatus;
+}
+
+interface TableFieldResult {
+  kind: 'table';
+  field: FieldSpec;
+  majorityRows: Record<string, unknown>[];
+  agreement: number;
+  validatorStatus: ValidatorStatus;
+}
+
+type FieldPassResult = ScalarFieldResult | TableFieldResult;
 
 export async function extractDocument(documentId: string): Promise<ExtractDocumentResult> {
   const [doc] = await db.select().from(documents).where(eq(documents.id, documentId)).limit(1);
@@ -131,55 +140,126 @@ export async function extractDocument(documentId: string): Promise<ExtractDocume
     throw new Error(`All ${samples.length} extraction samples failed to produce parseable output for document ${documentId}`);
   }
 
-  for (const field of fields) {
+  // Pass 1: majority-vote + format-validate every field without touching the DB yet —
+  // cross-field checks (pass 1.5) need every field's value available at once, so nothing
+  // can be inserted until the whole schema has been resolved.
+  const passResults: FieldPassResult[] = fields.map((field) => {
     if (field.type === 'table') {
       const sampleArrays = successfulSamples.map((s) => (s.parsed[field.key] as unknown[] | null | undefined) ?? []);
       const { value: majorityRows, agreement } = pickMajority(sampleArrays);
+      return {
+        kind: 'table',
+        field,
+        majorityRows: majorityRows as Record<string, unknown>[],
+        agreement,
+        validatorStatus: majorityRows.length > 0 ? 'valid' : 'missing',
+      };
+    }
+    const sampleValues = successfulSamples.map((s) => {
+      const v = s.parsed[field.key];
+      return v === null || v === undefined ? null : String(v);
+    });
+    const { value: rawValue, agreement } = pickMajority(sampleValues);
+    return {
+      kind: 'scalar',
+      field,
+      rawValue,
+      normalizedValue: normalizeValue(field.type, rawValue),
+      agreement,
+      validatorStatus: validateField(field, rawValue),
+    };
+  });
 
+  const scalars = new Map<string, { normalizedValue: string | null; validatorStatus: ValidatorStatus }>();
+  for (const result of passResults) {
+    if (result.kind === 'scalar') {
+      scalars.set(result.field.key, { normalizedValue: result.normalizedValue, validatorStatus: result.validatorStatus });
+    }
+  }
+  const tableResult = passResults.find((r): r is TableFieldResult => r.kind === 'table');
+  const lineItemRows = tableResult ? tableResult.majorityRows : null;
+  const crossFieldResults: CrossFieldCheckResults = computeCrossFieldChecks(scalars, lineItemRows);
+
+  // Pass 2: score confidence (sample agreement, softened/zeroed by validatorStatus and
+  // cross-field checks resolved above), decide auto_accepted vs needs_review, and insert.
+  for (const result of passResults) {
+    const crossFieldChecks = crossFieldResults.perFieldChecks.get(result.field.key) ?? [];
+    const confidence = computeConfidence({
+      sampleAgreement: result.agreement,
+      validatorStatus: result.validatorStatus,
+      required: result.field.required,
+      crossFieldChecks,
+    });
+    const status = decideStatus(confidence, result.field.autoAcceptThreshold);
+
+    if (result.kind === 'table') {
       const [fvRow] = await db
         .insert(fieldValues)
         .values({
           extractionId: extractionRow.id,
           documentId,
-          fieldKey: field.key,
-          fieldType: field.type,
+          fieldKey: result.field.key,
+          fieldType: result.field.type,
           rawValue: null,
           normalizedValue: null,
-          confidence: agreement.toString(),
-          confidenceParts: { sampleAgreement: agreement },
-          validatorStatus: majorityRows.length > 0 ? 'valid' : 'missing',
-          status: 'pending',
+          confidence: confidence.toString(),
+          confidenceParts: { sampleAgreement: result.agreement, validatorStatus: result.validatorStatus, crossFieldChecks },
+          validatorStatus: result.validatorStatus,
+          status,
         })
         .returning({ id: fieldValues.id });
 
-      for (let rowIndex = 0; rowIndex < majorityRows.length; rowIndex++) {
+      const columns = result.field.columns ?? [];
+      for (let rowIndex = 0; rowIndex < result.majorityRows.length; rowIndex++) {
+        const cells = result.majorityRows[rowIndex];
+
+        // Aggregate the row's own validity from its cells: any format-invalid cell
+        // taints the whole row (a row can't be "mostly right"); a missing optional
+        // cell doesn't, mirroring how a missing-but-not-required scalar field isn't
+        // penalized on its own.
+        let hasInvalid = false;
+        let hasMissingRequired = false;
+        for (const column of columns) {
+          const cellStatus = validateValue(column.type, undefined, cells[column.key] as string | number | null | undefined);
+          if (cellStatus === 'invalid') hasInvalid = true;
+          else if (cellStatus === 'missing' && column.required) hasMissingRequired = true;
+        }
+        const rowValidatorStatus: ValidatorStatus = hasInvalid ? 'invalid' : hasMissingRequired ? 'missing' : 'valid';
+
+        const rowCrossFieldChecks = crossFieldResults.perRowChecks[rowIndex] ?? [];
+        const rowConfidence = computeConfidence({
+          sampleAgreement: result.agreement,
+          validatorStatus: rowValidatorStatus,
+          required: true,
+          crossFieldChecks: rowCrossFieldChecks,
+        });
+        const rowStatus = decideStatus(rowConfidence, result.field.autoAcceptThreshold);
+
         await db.insert(fieldValueRows).values({
           fieldValueId: fvRow.id,
           rowIndex,
-          cells: majorityRows[rowIndex] as Record<string, unknown>,
-          confidence: agreement.toString(),
-          confidenceParts: { sampleAgreement: agreement },
-          status: 'pending',
+          cells,
+          confidence: rowConfidence.toString(),
+          confidenceParts: {
+            sampleAgreement: result.agreement,
+            validatorStatus: rowValidatorStatus,
+            crossFieldChecks: rowCrossFieldChecks,
+          },
+          status: rowStatus,
         });
       }
     } else {
-      const sampleValues = successfulSamples.map((s) => {
-        const v = s.parsed[field.key];
-        return v === null || v === undefined ? null : String(v);
-      });
-      const { value: rawValue, agreement } = pickMajority(sampleValues);
-
       await db.insert(fieldValues).values({
         extractionId: extractionRow.id,
         documentId,
-        fieldKey: field.key,
-        fieldType: field.type,
-        rawValue,
-        normalizedValue: normalizeValue(field.type, rawValue),
-        confidence: agreement.toString(),
-        confidenceParts: { sampleAgreement: agreement },
-        validatorStatus: validateField(field, rawValue),
-        status: 'pending',
+        fieldKey: result.field.key,
+        fieldType: result.field.type,
+        rawValue: result.rawValue,
+        normalizedValue: result.normalizedValue,
+        confidence: confidence.toString(),
+        confidenceParts: { sampleAgreement: result.agreement, validatorStatus: result.validatorStatus, crossFieldChecks },
+        validatorStatus: result.validatorStatus,
+        status,
       });
     }
   }
