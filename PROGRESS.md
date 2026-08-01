@@ -328,3 +328,25 @@ First reported result: **auto-accept precision 96.4% (81/84)**, with all 3 misse
 - [x] Pulled the fix, re-ran `npx tsx scripts/run-eval.ts` for real: **100.0% (84/84)** auto-accept precision, **100.0%** across every doc type (invoice/purchase_order/receipt) and every difficulty group (clean/edge_case/multipage/scanned) — zero mismatches. Confirms the fix resolves exactly what was hand-verified, not just what the code claimed it would do.
 
 This closes Phase 7 — the last phase in the original scaffolded plan (ingest → extract → confidence → review → export → eval). Whatever comes after this point is new work, not a continuation of an existing "pending phase."
+
+## Phase 8 — Full-corpus extraction (new work, not part of the original plan)
+
+### Summary
+User-directed follow-on: the eval's 100% auto-accept precision rests on only 84 field-level data points from the 10-document dev subset — a real but statistically thin result. `scripts/extract-remaining-corpus.ts` extracts the other 50 of the 60-document corpus, and `runEval` no longer filters to `inDevSubset` so the eval naturally covers whatever's actually been extracted.
+
+### Files
+- `scripts/extract-remaining-corpus.ts` — same shape as `extract-devset.ts` (per-document `extractDocument` call, progress logging, `pool.end()` on completion), but **skips documents that already have an extraction** rather than always re-extracting. This is a deliberate difference in philosophy, not an oversight: `extract-devset.ts`'s 10-doc subset is cheap to redo on every run for iteration; a 50-document, 150-real-API-call run should not silently repeat (and re-charge for) work that already succeeded, especially on a partial/failed re-run.
+- `api/src/eval/run.ts` — `runEval` now selects all documents, not just `inDevSubset = true`. The `inDevSubset` flag named the *original* 10-doc slice specifically; filtering on it forever would have permanently capped the eval at 10 documents even after the other 50 were extracted. A document without an extraction yet is already handled gracefully (`documentsSkipped`, reason `no_extraction`), so this only broadens what gets the *chance* to be evaluated — it doesn't change how any given document is scored.
+
+### Cost
+50 documents × `SAMPLE_COUNT` (3) = 150 real Anthropic API calls. Explicitly accepted by the user, who chose this path knowing the tradeoff after it was raised.
+
+### Testing
+- Typecheck clean, all 166 existing tests still pass unchanged (the mocked test suite abstracts away the exact SQL `WHERE` clause entirely, so there's nothing new a unit test can meaningfully assert here — consistent with how this project has always verified real query behavior live rather than via mocks).
+- No dedicated test file for the new script, consistent with `extract-devset.ts` having none either — both are thin orchestration wrappers around already-tested library code (`extractDocument`).
+- Not yet run — needs the user's machine (real `DATABASE_URL` + `ANTHROPIC_API_KEY`), same as every other live-DB operation this project has needed all along.
+
+### Checkpoint — pending user action
+- [ ] Pull, then run `npx tsx scripts/extract-remaining-corpus.ts` from the repo root. Expect real cost (150 API calls) and real time (this will take a while — each document costs multiple round-trips to Anthropic).
+- [ ] If anything fails partway, the failure list at the end names exactly which documents to retry — re-running the same command only re-attempts what's still missing, not everything.
+- [ ] Once it completes, re-run `npx tsx scripts/run-eval.ts` and see the real, full-corpus auto-accept precision — a materially more defensible number than the 10-document one.
