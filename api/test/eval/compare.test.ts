@@ -57,6 +57,59 @@ describe('compareLineItems', () => {
     { description: 'Gadget', quantity: 1, unit_price: '5.50', amount: '5.50' },
   ];
 
+  it('regression: matches when rows are extracted in a different order but every value is correct', () => {
+    // The exact live scenario found during the Phase 7 checkpoint: three real
+    // scanned documents extracted every line item correctly but in reversed row
+    // order (plausibly OCR linearizing the table differently than a clean PDF's
+    // text stream). A positional-only check flagged all three as complete misses
+    // despite zero actual value errors — this reproduces that shape directly.
+    const reversedGold = [
+      { description: 'Cable management conduit, 10ft', quantity: 1, unit_price: '143.46', amount: '143.46' },
+      { description: 'Cable management conduit, 10ft', quantity: 5, unit_price: '75.49', amount: '377.45' },
+      { description: 'Warehouse shelving bracket set', quantity: 15, unit_price: '32.08', amount: '481.20' },
+      { description: 'Warehouse shelving bracket set', quantity: 1, unit_price: '42.28', amount: '42.28' },
+      { description: 'Cordless drill battery pack', quantity: 32, unit_price: '89.64', amount: '2868.48' },
+    ];
+    const extractedInReverseOrder = [...reversedGold].reverse().map((r) => ({
+      description: r.description,
+      quantity: r.quantity,
+      unit_price: `$${r.unit_price}`,
+      amount: `$${r.amount}`,
+    }));
+
+    const result = compareLineItems(extractedInReverseOrder, reversedGold);
+
+    expect(result.allMatch).toBe(true);
+    expect(result.rowCountMatches).toBe(true);
+    // The positional breakdown, by contrast, is thrown off by the reordering (the
+    // outer two pairs land at swapped positions; only the middle row of this
+    // odd-length reversal coincidentally stays put) — allMatch is the signal that
+    // matters, .rows[] here is diagnostic detail only, not the pass/fail check.
+    expect(result.rows.some((r) => !r.matched)).toBe(true);
+  });
+
+  it('does not credit two DIFFERENT rows as matching each other just because a value repeats elsewhere', () => {
+    // Guards against a multiset implementation bug where "amount 42.28 appears
+    // somewhere in both lists" could be mistaken for genuine equality without
+    // checking the full row together.
+    const extracted = [
+      { description: 'Widget', quantity: 2, unit_price: '10.00', amount: '20.00' },
+      { description: 'Something else entirely', quantity: 99, unit_price: '1.00', amount: '5.50' }, // wrong row, but amount coincidentally matches gold's Gadget
+    ];
+    const result = compareLineItems(extracted, gold);
+    expect(result.allMatch).toBe(false);
+  });
+
+  it('requires a duplicate gold row to appear the same number of times in extracted, not just once', () => {
+    const duplicated = [
+      { description: 'Widget', quantity: 1, unit_price: '1.00', amount: '1.00' },
+      { description: 'Widget', quantity: 1, unit_price: '1.00', amount: '1.00' },
+    ];
+    const onlyOneCopy = [{ description: 'Widget', quantity: 1, unit_price: '1.00', amount: '1.00' }];
+    expect(compareLineItems(onlyOneCopy, duplicated).allMatch).toBe(false);
+    expect(compareLineItems(duplicated, duplicated).allMatch).toBe(true);
+  });
+
   it('matches when every row and column matches positionally', () => {
     const extracted = [
       { description: 'Widget', quantity: 2, unit_price: '$10.00', amount: '$20.00' },
