@@ -328,3 +328,38 @@ First reported result: **auto-accept precision 96.4% (81/84)**, with all 3 misse
 - [x] Pulled the fix, re-ran `npx tsx scripts/run-eval.ts` for real: **100.0% (84/84)** auto-accept precision, **100.0%** across every doc type (invoice/purchase_order/receipt) and every difficulty group (clean/edge_case/multipage/scanned) — zero mismatches. Confirms the fix resolves exactly what was hand-verified, not just what the code claimed it would do.
 
 This closes Phase 7 — the last phase in the original scaffolded plan (ingest → extract → confidence → review → export → eval). Whatever comes after this point is new work, not a continuation of an existing "pending phase."
+
+## Phase 8 — Full-corpus extraction (new work, not part of the original plan)
+
+### Summary
+User-directed follow-on: the eval's 100% auto-accept precision rests on only 84 field-level data points from the 10-document dev subset — a real but statistically thin result. `scripts/extract-remaining-corpus.ts` extracts the other 50 of the 60-document corpus, and `runEval` no longer filters to `inDevSubset` so the eval naturally covers whatever's actually been extracted.
+
+### Files
+- `scripts/extract-remaining-corpus.ts` — same shape as `extract-devset.ts` (per-document `extractDocument` call, progress logging, `pool.end()` on completion), but **skips documents that already have an extraction** rather than always re-extracting. This is a deliberate difference in philosophy, not an oversight: `extract-devset.ts`'s 10-doc subset is cheap to redo on every run for iteration; a 50-document, 150-real-API-call run should not silently repeat (and re-charge for) work that already succeeded, especially on a partial/failed re-run.
+- `api/src/eval/run.ts` — `runEval` now selects all documents, not just `inDevSubset = true`. The `inDevSubset` flag named the *original* 10-doc slice specifically; filtering on it forever would have permanently capped the eval at 10 documents even after the other 50 were extracted. A document without an extraction yet is already handled gracefully (`documentsSkipped`, reason `no_extraction`), so this only broadens what gets the *chance* to be evaluated — it doesn't change how any given document is scored.
+
+### Cost
+50 documents × `SAMPLE_COUNT` (3) = 150 real Anthropic API calls. Explicitly accepted by the user, who chose this path knowing the tradeoff after it was raised.
+
+### Testing
+- Typecheck clean, all 166 existing tests still pass unchanged (the mocked test suite abstracts away the exact SQL `WHERE` clause entirely, so there's nothing new a unit test can meaningfully assert here — consistent with how this project has always verified real query behavior live rather than via mocks).
+- No dedicated test file for the new script, consistent with `extract-devset.ts` having none either — both are thin orchestration wrappers around already-tested library code (`extractDocument`).
+- Not yet run — needs the user's machine (real `DATABASE_URL` + `ANTHROPIC_API_KEY`), same as every other live-DB operation this project has needed all along.
+
+### First live attempt found a real gap in the initial design
+The first run of `extract-remaining-corpus.ts` failed on all 50 documents, uniformly: `extractDocument` (`api/src/extract/run.ts`) has its own hard-coded guard — `if (!doc.inDevSubset) throw ...` — rejecting any non-dev-subset document, specifically so the API route (and any other caller) can't accidentally trigger a full-corpus spend. This guard was already in the codebase since Phase 3 and wasn't checked before writing the new script. No API cost was wasted (the guard fires before any model call), but it was a real oversight worth naming rather than glossing over.
+
+**Fixed properly, not just bypassed**: `extractDocument` now takes an optional `{ allowOutsideDevSubset?: boolean }` (default `false`, preserving the existing guard for the API route and `extract-devset.ts` unchanged), and `extract-remaining-corpus.ts` is the one caller that explicitly passes `true` — a narrow, explicit opt-in for the one deliberate, twice-authorized exception, rather than removing a real safety rail that protects every other caller. New test (`api/test/extract/run.test.ts`) covers the override path directly. 167 tests pass, typecheck clean.
+
+### Checkpoint — CLOSED (2026-08-01)
+- [x] Ran `extract-remaining-corpus.ts` for real: **50/50 succeeded, 0 failed.** All 60 of 60 documents now have a real extraction.
+- [x] Ran `run-eval.ts` against the full corpus: **60/60 documents evaluated, 0 skipped. Auto-accept precision: 100.0% (496/496)** — 100% across every doc type and every difficulty group, including `scanned`. A materially more defensible result than the 10-document/84-field number: same conclusion, ~6x the sample.
+
+**One real, new thing this run surfaced: automation rate is 99.2% (496/500), not 100%.** Four fields across the full corpus landed at `needs_review` rather than `auto_accepted` — the first time in this entire project that a real, non-empty review queue has existed (every prior checkpoint, since Phase 5, found the queue empty).
+
+### The Phase 5 gap, finally closed live
+Immediately followed up rather than just noted: opened the actual web UI against these 4 real items and reviewed every one of them live, through real clicks/keyboard shortcuts, not a mocked test.
+
+- **Item 1** (`purchase_order_edge_case_03.pdf`, `total`) and **item 4** (`purchase_order_edge_case_15.pdf`, `delivery_date`) were hand-verified against gold before acting: both fields are deliberately-planted "required field genuinely not printed on the document" edge cases from Phase 1 (`scripts/make-synthetic-docs.ts`'s `omitFieldKey` mechanism — the manifest explicitly notes each one, e.g. `"Required field \"total\" is not printed anywhere on the document (genuinely absent)"`), and gold's own ground truth for both is `null`. The system's 0% confidence / `missing` / `needs_review` handling was exactly correct — it declined to guess rather than hallucinating a value — so the correct reviewer action was to **Accept** the blank value as-is, not fabricate a correction. All 4 items followed this identical shape.
+- All 4 accepted via the real UI (`Enter to accept`, the keyboard-fast shortcut the README describes) — the queue correctly advanced after each one, and after the 4th, correctly reached the empty `"All caught up"` state (the header read `4 reviewed, 0 corrected`).
+- **This closes the Phase 5 checkpoint's long-standing known gap directly**: the accept action path — click/keypress → API call → DB write → queue advance → correct empty state on completion — is now confirmed working end-to-end against real, live data, not just against 113+ passing mocked tests and a Playwright smoke test of the surrounding shell. The `correct` (edit-a-value) action path specifically remains exercised only by tests, not live — none of these 4 real items happened to need an actual value correction, since all 4 were legitimately-blank rather than wrong.

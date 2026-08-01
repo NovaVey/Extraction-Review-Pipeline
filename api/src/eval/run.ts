@@ -85,23 +85,25 @@ function groupBy<K extends string>(fields: FieldEvalResult[], key: (f: FieldEval
   return result;
 }
 
-// Compares the current (post-review) state of every dev-subset document's latest
+// Compares the current (post-review) state of every ingested document's latest
 // extraction against the synthetic corpus's ground truth (samples/manifest.json).
-// Only inDevSubset documents are considered — that's the only slice that's ever been
-// through real extraction (see scripts/extract-devset.ts).
+// Not filtered to inDevSubset — originally that flag was the only slice that had ever
+// been through real extraction (scripts/extract-devset.ts), but scripts/extract-
+// remaining-corpus.ts extends that to the full 60-doc corpus, and this naturally
+// scales with whatever has actually been extracted rather than needing a matching
+// change every time the extracted set grows. A document with no extraction yet is
+// already handled below (documentsSkipped, reason: 'no_extraction'), so including
+// every document here rather than pre-filtering doesn't change that behavior, just
+// broadens what gets the chance to be evaluated.
 export async function runEval(manifestPath?: string): Promise<EvalSummary> {
   const goldSet = loadGoldSet(manifestPath);
-  const devSetDocs = await db
-    .select({ id: documents.id, filename: documents.filename })
-    .from(documents)
-    .where(eq(documents.inDevSubset, true))
-    .orderBy(documents.filename);
+  const allDocs = await db.select({ id: documents.id, filename: documents.filename }).from(documents).orderBy(documents.filename);
 
   const documentsSkipped: Array<{ filename: string; reason: string }> = [];
   const fields: FieldEvalResult[] = [];
   let documentsEvaluated = 0;
 
-  for (const doc of devSetDocs) {
+  for (const doc of allDocs) {
     const gold = goldSet.get(doc.filename);
     if (!gold) {
       documentsSkipped.push({ filename: doc.filename, reason: 'not_in_gold_set' });
