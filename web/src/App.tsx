@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { CheckCircle2, FileCheck2 } from 'lucide-react';
 import {
   ApiError,
@@ -32,6 +32,37 @@ function App() {
   // accept/correct doesn't visibly flash to a blank loading screen on every keystroke.
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [stats, setStats] = useState<ReviewQueueStats | null>(null);
+  // Which fieldValueId was just accepted via the global "nothing focused" shortcut —
+  // ReviewPane's own accept/correct handlers set their own local "Saved" state
+  // directly, but that path is bypassed entirely when this global listener is what
+  // fired, so without this the confirmation never shows for that (very common)
+  // interaction. Naturally stops matching once a genuinely new item loads, since
+  // this is compared against queueState.item.fieldValueId at render time.
+  const [globallyAcceptedId, setGloballyAcceptedId] = useState<string | null>(null);
+  // Guards the global shortcut against re-firing on a field that was *just*
+  // resolved but hasn't been replaced by the next queue item yet (queueState.item
+  // is never optimistically updated, so its .status still reads needs_review during
+  // that window) — without this, disabling the input/buttons right after a save
+  // returns focus to document.body, which is exactly the resting state this
+  // shortcut treats as "accept the current field." Also set after a *row*-level
+  // accept/correct, not just field-level ones: resolving one row of a table field
+  // now disables (via `locked`) every other still-focused row control too, which
+  // blurs to body the same way — without this a stray Enter right after finishing
+  // one row would fire the global shortcut's handleAcceptField on the *whole*
+  // table field, which bulk-resolves every remaining row from its last-saved cell
+  // values, silently discarding an in-progress edit in another row's input.
+  const justResolvedFieldValueIdRef = useRef<string | null>(null);
+  const refetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Whether the "change reviewer" confirmation dialog is open. A native
+  // window.confirm() was tried first and rejected by adversarial review: Enter
+  // both activates the "change" button *and* is bound to a native confirm
+  // dialog's default "OK" action, so a key-repeat or double-tap Enter (exactly
+  // what this app's own Enter-driven UX trains reviewers to do) opens and
+  // immediately auto-accepts the dialog, silently wiping the session — the very
+  // failure the confirmation was meant to prevent. A custom dialog whose default
+  // focus is "Cancel" (see ConfirmChangeReviewerDialog) means a stray extra Enter
+  // lands on the safe action instead.
+  const [confirmingChangeReviewer, setConfirmingChangeReviewer] = useState(false);
 
   const beginSession = useCallback((reviewer: string) => {
     setSessionError(null);
@@ -68,6 +99,7 @@ function App() {
       .then(({ item }) => {
         setQueueState({ status: 'loaded', item });
         setIsTransitioning(false);
+        justResolvedFieldValueIdRef.current = null;
       })
       .catch(() => {
         setQueueState({ status: 'error', message: 'Could not reach the review queue.' });
@@ -103,7 +135,8 @@ function App() {
         setItemsReviewed((n) => n + delta.reviewed);
         setItemsCorrected((n) => n + delta.corrected);
         refetchStats();
-        setTimeout(refetchQueue, 400);
+        if (refetchTimeoutRef.current !== null) clearTimeout(refetchTimeoutRef.current);
+        refetchTimeoutRef.current = setTimeout(refetchQueue, 400);
         return { ok: true };
       } catch (err) {
         // Someone/something else already resolved this item (plausible on a
@@ -122,7 +155,10 @@ function App() {
   const handleAcceptField = useCallback(
     (fieldValueId: string) => {
       if (!reviewerName || !reviewSessionId) return Promise.resolve<ActionOutcome>({ ok: false, message: 'Not ready yet.' });
-      return runAction(() => acceptField(fieldValueId, reviewerName, reviewSessionId), { reviewed: 1, corrected: 0 });
+      return runAction(() => acceptField(fieldValueId, reviewerName, reviewSessionId), { reviewed: 1, corrected: 0 }).then((outcome) => {
+        if (outcome.ok) justResolvedFieldValueIdRef.current = fieldValueId;
+        return outcome;
+      });
     },
     [reviewerName, reviewSessionId, runAction],
   );
@@ -130,7 +166,12 @@ function App() {
   const handleCorrectField = useCallback(
     (fieldValueId: string, newValue: string) => {
       if (!reviewerName || !reviewSessionId) return Promise.resolve<ActionOutcome>({ ok: false, message: 'Not ready yet.' });
-      return runAction(() => correctField(fieldValueId, reviewerName, newValue, reviewSessionId), { reviewed: 1, corrected: 1 });
+      return runAction(() => correctField(fieldValueId, reviewerName, newValue, reviewSessionId), { reviewed: 1, corrected: 1 }).then(
+        (outcome) => {
+          if (outcome.ok) justResolvedFieldValueIdRef.current = fieldValueId;
+          return outcome;
+        },
+      );
     },
     [reviewerName, reviewSessionId, runAction],
   );
@@ -138,29 +179,51 @@ function App() {
   const handleAcceptRow = useCallback(
     (rowId: string) => {
       if (!reviewerName || !reviewSessionId) return Promise.resolve<ActionOutcome>({ ok: false, message: 'Not ready yet.' });
-      return runAction(() => acceptRow(rowId, reviewerName, reviewSessionId), { reviewed: 1, corrected: 0 });
+      // Same guard field-level actions set — a row resolving also disables (via
+      // `locked`) every other still-focused row control, which blurs to body just
+      // like a field-level save does, so the global shortcut needs the same
+      // protection against re-firing on the parent field.
+      const fieldValueId = queueState.status === 'loaded' ? (queueState.item?.fieldValueId ?? null) : null;
+      return runAction(() => acceptRow(rowId, reviewerName, reviewSessionId), { reviewed: 1, corrected: 0 }).then((outcome) => {
+        if (outcome.ok && fieldValueId) justResolvedFieldValueIdRef.current = fieldValueId;
+        return outcome;
+      });
     },
-    [reviewerName, reviewSessionId, runAction],
+    [reviewerName, reviewSessionId, runAction, queueState],
   );
 
   const handleCorrectRow = useCallback(
     (rowId: string, columnKey: string, newValue: string) => {
       if (!reviewerName || !reviewSessionId) return Promise.resolve<ActionOutcome>({ ok: false, message: 'Not ready yet.' });
-      return runAction(() => correctRow(rowId, reviewerName, columnKey, newValue, reviewSessionId), { reviewed: 1, corrected: 1 });
+      const fieldValueId = queueState.status === 'loaded' ? (queueState.item?.fieldValueId ?? null) : null;
+      return runAction(() => correctRow(rowId, reviewerName, columnKey, newValue, reviewSessionId), { reviewed: 1, corrected: 1 }).then(
+        (outcome) => {
+          if (outcome.ok && fieldValueId) justResolvedFieldValueIdRef.current = fieldValueId;
+          return outcome;
+        },
+      );
     },
-    [reviewerName, reviewSessionId, runAction],
+    [reviewerName, reviewSessionId, runAction, queueState],
   );
 
   // The one true global hotkey: nothing focused (the resting state if the value
-  // input has been blurred, e.g. via Esc) + Enter = accept the top-level field as
-  // -is. The common case goes through the value input's own autofocused handler
-  // instead (see ReviewPane) — this is the fallback path, not the primary one.
+  // input has been blurred, e.g. via Esc, or because it just got disabled after a
+  // save) + Enter = accept the top-level field as-is. The common case goes through
+  // the value input's own autofocused handler instead (see ReviewPane) — this is
+  // the fallback path, not the primary one.
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key !== 'Enter') return;
       if (document.activeElement !== document.body) return;
       if (queueState.status !== 'loaded' || !queueState.item) return;
       if (queueState.item.status !== 'needs_review') return;
+      // queueState.item is never optimistically updated, so its .status can still
+      // read needs_review for a field that was *just* resolved a moment ago (the
+      // disable-on-save that follows returns focus to document.body, which is
+      // exactly this handler's trigger condition) — without this check a second
+      // stray Enter re-fires accept on the same, already-resolved field.
+      if (queueState.item.fieldValueId === justResolvedFieldValueIdRef.current) return;
+      setGloballyAcceptedId(queueState.item.fieldValueId);
       void handleAcceptField(queueState.item.fieldValueId);
     }
     document.addEventListener('keydown', handleKeyDown);
@@ -172,7 +235,25 @@ function App() {
     setReviewerName(name);
   }
 
-  function handleChangeReviewer() {
+  // "change reviewer" is reachable via ordinary keyboard flow (it's first in tab
+  // order, and several normal actions — a save disabling its own controls, Esc
+  // resetting a field — return focus to document.body, one Tab away from here) —
+  // a confirmation is the actual fix, not just autofocusing the value input
+  // elsewhere, which only prevented one specific repro of the same underlying gap.
+  function handleRequestChangeReviewer() {
+    setConfirmingChangeReviewer(true);
+  }
+
+  function handleCancelChangeReviewer() {
+    setConfirmingChangeReviewer(false);
+  }
+
+  function handleConfirmChangeReviewer() {
+    setConfirmingChangeReviewer(false);
+    if (refetchTimeoutRef.current !== null) {
+      clearTimeout(refetchTimeoutRef.current);
+      refetchTimeoutRef.current = null;
+    }
     if (reviewSessionId) endReviewSessionBeacon(reviewSessionId);
     localStorage.removeItem(REVIEWER_STORAGE_KEY);
     setReviewerName(null);
@@ -198,7 +279,7 @@ function App() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#FCFCFD] text-[#101114]">
-      <Header reviewerName={reviewerName} itemsReviewed={itemsReviewed} itemsCorrected={itemsCorrected} onChangeReviewer={handleChangeReviewer} />
+      <Header reviewerName={reviewerName} itemsReviewed={itemsReviewed} itemsCorrected={itemsCorrected} onChangeReviewer={handleRequestChangeReviewer} />
       <div className="flex min-h-0 flex-1">
         <QueueSidebar stats={stats} />
         <main className="min-h-0 flex-1 overflow-y-auto p-4">
@@ -222,10 +303,53 @@ function App() {
                 onCorrectField={handleCorrectField}
                 onAcceptRow={handleAcceptRow}
                 onCorrectRow={handleCorrectRow}
+                locked={isTransitioning}
+                globallyAccepted={globallyAcceptedId === queueState.item.fieldValueId}
               />
             </div>
           )}
         </main>
+      </div>
+      {confirmingChangeReviewer && <ConfirmChangeReviewerDialog onConfirm={handleConfirmChangeReviewer} onCancel={handleCancelChangeReviewer} />}
+    </div>
+  );
+}
+
+// Default focus sits on Cancel, not the destructive action — a native
+// window.confirm() binds Enter to "OK", so a key-repeat or double-tap Enter
+// right after opening it (exactly what this app's own Enter-driven UX trains
+// reviewers to do) would silently accept it. Landing an extra stray Enter on
+// this dialog instead just re-clicks Cancel, which is safe.
+function ConfirmChangeReviewerDialog({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onCancel();
+      }}
+    >
+      <div role="alertdialog" aria-modal="true" aria-labelledby="change-reviewer-title" className="w-full max-w-sm rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-lg">
+        <p id="change-reviewer-title" className="text-sm font-semibold text-[#101114]">
+          Change reviewer?
+        </p>
+        <p className="mt-1 text-sm text-[#4B5563]">This will end your current review session.</p>
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            autoFocus
+            className="rounded-md border border-[#D1D5DB] bg-white px-3 py-1.5 text-sm font-medium text-[#101114] hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="rounded-md border border-red-600 bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
+          >
+            Change reviewer
+          </button>
+        </div>
       </div>
     </div>
   );

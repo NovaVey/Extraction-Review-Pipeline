@@ -7,29 +7,35 @@ interface RowTableProps {
   rows: ReviewItemRow[];
   onAcceptRow: (rowId: string) => Promise<ActionOutcome>;
   onCorrectRow: (rowId: string, columnKey: string, newValue: string) => Promise<ActionOutcome>;
+  locked?: boolean;
 }
 
-export function RowTable({ rows, onAcceptRow, onCorrectRow }: RowTableProps) {
+// The action column doesn't need much room, and by convention (see
+// scripts/fieldSpecs.ts's LINE_ITEM_COLUMNS) the first data column is always the
+// long free-text one ("Description") while the rest are short numbers/currency —
+// giving every data column an equal share was starving the one that actually
+// needs it, which is what left it visibly truncated even after table-fixed
+// stopped it from blowing out the table's total width.
+const ROW_ACTION_COL_PCT = 20;
+const FIRST_COL_PCT = 34;
+
+export function RowTable({ rows, onAcceptRow, onCorrectRow, locked = false }: RowTableProps) {
   if (rows.length === 0) return <p className="text-sm text-[#4B5563]">This table has no rows.</p>;
 
   // Columns are constant across every row of the same table field (per FieldSpec),
   // so the first row's columns are representative of all of them.
   const columns = rows[0].columns;
-  // table-fixed + an explicit colgroup keeps the table's total width predictable
-  // (never wider than its container) regardless of cell content length — a
-  // content-driven auto layout was letting a single long value push the last
-  // column off the visible edge with no scroll cue. Long values truncate inside
-  // their cell instead (see the input's `truncate` class below).
-  const dataColWidth = `${70 / columns.length}%`;
+  const firstColPct = columns.length > 1 ? FIRST_COL_PCT : 100 - ROW_ACTION_COL_PCT;
+  const restColPct = columns.length > 1 ? (100 - ROW_ACTION_COL_PCT - FIRST_COL_PCT) / (columns.length - 1) : 0;
 
   return (
     <div className="overflow-x-auto rounded-md border border-[#E5E7EB]">
       <table className="w-full table-fixed text-sm">
         <colgroup>
-          {columns.map((col) => (
-            <col key={col.key} style={{ width: dataColWidth }} />
+          {columns.map((col, i) => (
+            <col key={col.key} style={{ width: `${i === 0 ? firstColPct : restColPct}%` }} />
           ))}
-          <col style={{ width: '30%' }} />
+          <col style={{ width: `${ROW_ACTION_COL_PCT}%` }} />
         </colgroup>
         <thead>
           <tr className="bg-[#F9FAFB] text-left">
@@ -43,7 +49,7 @@ export function RowTable({ rows, onAcceptRow, onCorrectRow }: RowTableProps) {
         </thead>
         <tbody>
           {rows.map((row) => (
-            <RowTableRow key={row.id} row={row} columns={columns} onAcceptRow={onAcceptRow} onCorrectRow={onCorrectRow} />
+            <RowTableRow key={row.id} row={row} columns={columns} onAcceptRow={onAcceptRow} onCorrectRow={onCorrectRow} locked={locked} />
           ))}
         </tbody>
       </table>
@@ -56,15 +62,17 @@ interface RowTableRowProps {
   columns: ReviewItemColumn[];
   onAcceptRow: (rowId: string) => Promise<ActionOutcome>;
   onCorrectRow: (rowId: string, columnKey: string, newValue: string) => Promise<ActionOutcome>;
+  locked: boolean;
 }
 
-function RowTableRow({ row, columns, onAcceptRow, onCorrectRow }: RowTableRowProps) {
+function RowTableRow({ row, columns, onAcceptRow, onCorrectRow, locked }: RowTableRowProps) {
   const originals = Object.fromEntries(columns.map((col) => [col.key, String(row.cells[col.key] ?? '')]));
   const [values, setValues] = useState<Record<string, string>>(originals);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const canAccept = row.status === 'needs_review';
+  const busy = pending || saved || locked;
 
   async function handleCellKeyDown(event: KeyboardEvent<HTMLInputElement>, columnKey: string) {
     if (event.key === 'Enter') {
@@ -76,7 +84,7 @@ function RowTableRow({ row, columns, onAcceptRow, onCorrectRow }: RowTableRowPro
       // specific 400 as a silent success (someone/something else already resolved this
       // item). Without this guard the reviewer's edit would be discarded with no
       // visible error at all.
-      if (!canAccept || values[columnKey] === originals[columnKey] || pending || saved) return;
+      if (!canAccept || values[columnKey] === originals[columnKey] || busy) return;
       setPending(true);
       setError(null);
       const result = await onCorrectRow(row.id, columnKey, values[columnKey]);
@@ -91,7 +99,7 @@ function RowTableRow({ row, columns, onAcceptRow, onCorrectRow }: RowTableRowPro
   }
 
   async function handleAcceptRow() {
-    if (!canAccept || pending || saved) return;
+    if (!canAccept || busy) return;
     setPending(true);
     setError(null);
     const result = await onAcceptRow(row.id);
@@ -107,7 +115,7 @@ function RowTableRow({ row, columns, onAcceptRow, onCorrectRow }: RowTableRowPro
           <input
             type="text"
             value={values[col.key]}
-            disabled={pending || saved || !canAccept}
+            disabled={busy || !canAccept}
             aria-label={`${col.label}, row ${row.rowIndex + 1}`}
             onChange={(e) => setValues((v) => ({ ...v, [col.key]: e.target.value }))}
             onKeyDown={(e) => void handleCellKeyDown(e, col.key)}
@@ -121,7 +129,7 @@ function RowTableRow({ row, columns, onAcceptRow, onCorrectRow }: RowTableRowPro
             <button
               type="button"
               onClick={() => void handleAcceptRow()}
-              disabled={pending || saved}
+              disabled={busy}
               className={`flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium disabled:opacity-60 ${
                 saved ? 'border-green-600 bg-green-600 text-white' : 'border-brand bg-brand text-white hover:bg-brand-hover'
               }`}

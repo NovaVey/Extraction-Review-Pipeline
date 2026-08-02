@@ -10,6 +10,16 @@ interface ReviewPaneProps {
   onCorrectField: (fieldValueId: string, newValue: string) => Promise<ActionOutcome>;
   onAcceptRow: (rowId: string) => Promise<ActionOutcome>;
   onCorrectRow: (rowId: string, columnKey: string, newValue: string) => Promise<ActionOutcome>;
+  // True while the app is transitioning to the next item after a resolved action —
+  // dimmed visually by the parent already, but that alone (pointer-events-none)
+  // doesn't stop an already-focused control from still receiving keystrokes, so
+  // this actually disables the controls too.
+  locked?: boolean;
+  // True when this exact field was just accepted via the global "nothing focused"
+  // keyboard shortcut rather than this component's own Accept button/input Enter
+  // handler — that path bypasses local state entirely, so without this the "Saved"
+  // confirmation would never show for what is actually the most common interaction.
+  globallyAccepted?: boolean;
 }
 
 const DIFFICULTY_TOKENS = new Set(['clean', 'scanned', 'multipage', 'edge', 'case']);
@@ -25,7 +35,7 @@ function humanizeFilename(filename: string): string {
   return words.map((w) => (w.length > 0 ? w[0].toUpperCase() + w.slice(1) : w)).join(' ');
 }
 
-export function ReviewPane({ item, onAcceptField, onCorrectField, onAcceptRow, onCorrectRow }: ReviewPaneProps) {
+export function ReviewPane({ item, onAcceptField, onCorrectField, onAcceptRow, onCorrectRow, locked = false, globallyAccepted = false }: ReviewPaneProps) {
   const originalValue = item.normalizedValue ?? '';
   const [value, setValue] = useState(originalValue);
   const [pending, setPending] = useState(false);
@@ -48,9 +58,14 @@ export function ReviewPane({ item, onAcceptField, onCorrectField, onAcceptRow, o
   // may already be resolved while it's shown here purely because one of its rows
   // still needs review — accepting/correcting it again would 400 not_needs_review.
   const canActOnField = item.status === 'needs_review';
+  // Folds in `locked` (mirrors RowTable's identical `busy`) so these handlers have
+  // their own JS-level circuit breaker, not just the disabled DOM attribute — matches
+  // RowTableRow's handleAcceptRow/handleCellKeyDown, which already re-check this
+  // explicitly rather than trusting `disabled` alone to prevent the action firing.
+  const busy = pending || savedVia !== null || globallyAccepted || locked;
 
   async function handleAccept() {
-    if (!canActOnField || pending || savedVia) return;
+    if (!canActOnField || busy) return;
     setPending(true);
     setError(null);
     const result = await onAcceptField(item.fieldValueId);
@@ -60,7 +75,7 @@ export function ReviewPane({ item, onAcceptField, onCorrectField, onAcceptRow, o
   }
 
   async function handleSaveCorrection() {
-    if (!canActOnField || !isChanged || pending || savedVia) return;
+    if (!canActOnField || !isChanged || busy) return;
     setPending(true);
     setError(null);
     const result = await onCorrectField(item.fieldValueId, value);
@@ -84,7 +99,7 @@ export function ReviewPane({ item, onAcceptField, onCorrectField, onAcceptRow, o
 
   const label = item.label.trim().length > 0 ? item.label : item.fieldKey;
   const inputId = `review-value-${item.fieldValueId}`;
-  const busy = pending || savedVia !== null;
+  const acceptSaved = savedVia === 'accept' || globallyAccepted;
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-y-auto">
@@ -134,10 +149,10 @@ export function ReviewPane({ item, onAcceptField, onCorrectField, onAcceptRow, o
             onClick={() => void handleAccept()}
             disabled={!canActOnField || busy}
             className={`flex items-center gap-1 whitespace-nowrap rounded-md border px-3 py-1.5 text-sm font-medium disabled:opacity-60 ${
-              savedVia === 'accept' ? 'border-green-600 bg-green-600 text-white' : 'border-brand bg-brand text-white hover:bg-brand-hover'
+              acceptSaved ? 'border-green-600 bg-green-600 text-white' : 'border-brand bg-brand text-white hover:bg-brand-hover'
             }`}
           >
-            {savedVia === 'accept' ? (
+            {acceptSaved ? (
               <>
                 <Check size={14} /> Saved
               </>
@@ -182,7 +197,7 @@ export function ReviewPane({ item, onAcceptField, onCorrectField, onAcceptRow, o
             Accepting the field above resolves any rows below still marked "needs review" too — row-level accepts aren't the only
             way to clear them.
           </p>
-          <RowTable rows={item.rows} onAcceptRow={onAcceptRow} onCorrectRow={onCorrectRow} />
+          <RowTable rows={item.rows} onAcceptRow={onAcceptRow} onCorrectRow={onCorrectRow} locked={locked} />
         </div>
       )}
     </div>
