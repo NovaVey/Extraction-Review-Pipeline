@@ -94,3 +94,24 @@ export function correctRow(
     body: JSON.stringify({ reviewer, columnKey, newValue, reviewSessionId }),
   });
 }
+
+export function undoField(fieldValueId: string, reviewer: string, reviewSessionId: string): Promise<ActionResult> {
+  return request(`/api/review/fields/${fieldValueId}/undo`, {
+    method: 'POST',
+    body: JSON.stringify({ reviewer, reviewSessionId }),
+  });
+}
+
+export function undoRow(rowId: string, reviewer: string, reviewSessionId: string): Promise<ActionResult> {
+  return request(`/api/review/rows/${rowId}/undo`, {
+    method: 'POST',
+    body: JSON.stringify({ reviewer, reviewSessionId }),
+  });
+}
+
+export function archiveDocument(documentId: string, reviewer: string): Promise<{ id: string; status: string }> {
+  return request(`/api/documents/${documentId}/archive`, {
+    method: 'POST',
+    body: JSON.stringify({ reviewer }),
+  });
+}

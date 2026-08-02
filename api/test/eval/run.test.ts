@@ -193,6 +193,17 @@ describe('runEval', () => {
     expect(summary.fields[0].matched).toBe(true);
   });
 
+  it('skips an archived document with reason "archived", before even checking the gold set', async () => {
+    mocks.documentsResult = [{ id: 'doc-1', filename: 'invoice_clean_01.pdf', archivedAt: new Date() }];
+    mocks.goldSet = new Map([['invoice_clean_01.pdf', GOLD_INVOICE]]);
+
+    const summary = await runEval();
+
+    expect(summary.documentsEvaluated).toBe(0);
+    expect(summary.documentsSkipped).toEqual([{ filename: 'invoice_clean_01.pdf', reason: 'archived' }]);
+    expect(mocks.extractionsCalls).toHaveLength(0);
+  });
+
   it('skips a document not present in the gold set', async () => {
     mocks.documentsResult = [{ id: 'doc-1', filename: 'unknown.pdf' }];
     mocks.goldSet = new Map([['invoice_clean_01.pdf', GOLD_INVOICE]]);

@@ -1,7 +1,13 @@
 import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import { eq, desc } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { documents, extractions, fieldValues, fieldValueRows } from '../db/schema.js';
+import { archiveDocument, unarchiveDocument, DocumentNotFoundError } from '../documents/archive.js';
+
+const ArchiveDocumentBody = z.object({
+  reviewer: z.string().min(1),
+});
 
 export async function documentRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string } }>('/documents/:id/extraction', async (req, reply) => {
@@ -80,5 +86,29 @@ export async function documentRoutes(app: FastifyInstance) {
             : null,
       })),
     });
+  });
+
+  app.post<{ Params: { id: string } }>('/documents/:id/archive', async (req, reply) => {
+    const parsed = ArchiveDocumentBody.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'invalid_body', details: parsed.error.flatten() });
+    }
+    try {
+      const result = await archiveDocument(req.params.id, parsed.data.reviewer);
+      reply.send(result);
+    } catch (err) {
+      if (err instanceof DocumentNotFoundError) return reply.code(404).send({ error: 'document_not_found' });
+      throw err;
+    }
+  });
+
+  app.post<{ Params: { id: string } }>('/documents/:id/unarchive', async (req, reply) => {
+    try {
+      const result = await unarchiveDocument(req.params.id);
+      reply.send(result);
+    } catch (err) {
+      if (err instanceof DocumentNotFoundError) return reply.code(404).send({ error: 'document_not_found' });
+      throw err;
+    }
   });
 }

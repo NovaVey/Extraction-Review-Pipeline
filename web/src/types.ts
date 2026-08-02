@@ -83,5 +83,8 @@ export interface ReviewSession {
 
 // What action handlers resolve to once a mutation attempt is fully settled —
 // lets ReviewPane/RowTable show an inline error next to the control that
-// failed without App needing to track per-control error state itself.
-export type ActionOutcome = { ok: true } | { ok: false; message: string };
+// failed without App needing to track per-control error state itself. `noop`
+// distinguishes "this call genuinely resolved the item" from runAction's
+// not_needs_review passthrough (someone/something else already resolved it) —
+// only a genuine resolution should ever surface an Undo affordance.
+export type ActionOutcome = { ok: true; noop?: boolean } | { ok: false; message: string };

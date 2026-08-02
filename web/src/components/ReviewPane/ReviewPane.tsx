@@ -1,5 +1,5 @@
-import { useEffect, useState, type KeyboardEvent } from 'react';
-import { Check, Pencil } from 'lucide-react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { Check, Pencil, X } from 'lucide-react';
 import type { ActionOutcome, ReviewItem } from '../../types';
 import { ConfidenceBadge, CrossFieldChecksList, ResolutionStatusBadge, ValidatorStatusBadge } from './Badges';
 import { RowTable } from './RowTable';
@@ -63,6 +63,7 @@ export function ReviewPane({ item, onAcceptField, onCorrectField, onAcceptRow, o
   // RowTableRow's handleAcceptRow/handleCellKeyDown, which already re-check this
   // explicitly rather than trusting `disabled` alone to prevent the action firing.
   const busy = pending || savedVia !== null || globallyAccepted || locked;
+  const valueInputRef = useRef<HTMLInputElement>(null);
 
   async function handleAccept() {
     if (!canActOnField || busy) return;
@@ -84,6 +85,28 @@ export function ReviewPane({ item, onAcceptField, onCorrectField, onAcceptRow, o
     setSavedVia('correct');
   }
 
+  // Same reset Esc already does on the input — pulled out into its own function so
+  // the visible Cancel button (previously only discoverable via the header's small
+  // keyboard hint) can call the identical logic, not a re-implementation of it.
+  // Gated on `busy` alone (not `isChanged`) so it can still dismiss a lingering
+  // save-error even if the input happens to already match the original value.
+  //
+  // Explicitly refocuses the value input afterward — without this, clicking Cancel
+  // (mouse) makes isChanged false, which disables the Cancel button on the next
+  // render, and the browser auto-blurs the just-disabled control to document.body.
+  // That's exactly App.tsx's global "nothing focused + Enter" shortcut's resting
+  // state, and the field is genuinely still needs_review at that point (Cancel never
+  // calls onAcceptField), so a stray habitual Enter would silently accept the
+  // REVERTED value with no visible confirmation of what just got saved. Refocusing
+  // the input instead means any next Enter goes through the input's own, visible,
+  // deliberate accept path — the user can see the value they're about to accept.
+  function handleCancelEdit() {
+    if (busy) return;
+    setValue(originalValue);
+    setError(null);
+    valueInputRef.current?.focus();
+  }
+
   function handleInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === 'Enter') {
       // Stop this from also reaching the App-level "nothing focused" shortcut.
@@ -92,7 +115,7 @@ export function ReviewPane({ item, onAcceptField, onCorrectField, onAcceptRow, o
       else void handleAccept();
     } else if (event.key === 'Escape') {
       event.stopPropagation();
-      setValue(originalValue);
+      handleCancelEdit();
       event.currentTarget.blur();
     }
   }
@@ -135,6 +158,7 @@ export function ReviewPane({ item, onAcceptField, onCorrectField, onAcceptRow, o
         </label>
         <div className="flex items-center gap-2">
           <input
+            ref={valueInputRef}
             id={inputId}
             type="text"
             value={value}
@@ -177,6 +201,16 @@ export function ReviewPane({ item, onAcceptField, onCorrectField, onAcceptRow, o
             ) : (
               'Save correction'
             )}
+          </button>
+          {/* Esc already did this — a visible button makes it discoverable without
+              requiring the keyboard hint in the header to be read first. */}
+          <button
+            type="button"
+            onClick={handleCancelEdit}
+            disabled={!canActOnField || busy}
+            className="flex items-center gap-1 whitespace-nowrap rounded-md border border-transparent px-2 py-1.5 text-sm font-medium text-[#4B5563] disabled:opacity-60 hover:bg-gray-100"
+          >
+            <X size={14} /> Cancel
           </button>
         </div>
         {!canActOnField && (

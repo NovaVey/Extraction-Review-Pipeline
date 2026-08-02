@@ -57,6 +57,13 @@ export const documents = pgTable(
     failureReason: text('failure_reason'),
     uploadedAt: timestamp('uploaded_at', { withTimezone: true }).notNull().defaultNow(),
     purgeAfter: timestamp('purge_after', { withTimezone: true }),
+    // Soft-delete: an archived document is excluded from the review queue, stats,
+    // exports, and the eval harness, but its rows and Storage files are kept —
+    // this project treats audit history as something that only ever grows (see
+    // corrections), and a document a reviewer corrected is exactly the kind of
+    // record that principle applies to.
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+    archivedBy: text('archived_by'),
   },
   (table) => [uniqueIndex('documents_batch_id_sha256_key').on(table.batchId, table.sha256)],
 );

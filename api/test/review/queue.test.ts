@@ -84,7 +84,9 @@ describe('getNextReviewItem', () => {
       ],
     ];
     mocks.extractionsCalls = [[{ id: 'ext-1', schemaId: 'schema-1' }]];
-    mocks.documentsCalls = [[{ id: 'doc-1', filename: 'invoice.pdf' }]];
+    // Two documents-table calls now: the archived-document exclusion lookup (empty —
+    // nothing archived), then the chosen candidate's own document lookup.
+    mocks.documentsCalls = [[], [{ id: 'doc-1', filename: 'invoice.pdf' }]];
     mocks.schemasCalls = [
       [
         {
@@ -138,7 +140,7 @@ describe('getNextReviewItem', () => {
       ],
     ];
     mocks.extractionsCalls = [[{ id: 'ext-2', schemaId: 'schema-2' }]];
-    mocks.documentsCalls = [[{ id: 'doc-2', filename: 'po.pdf' }]];
+    mocks.documentsCalls = [[], [{ id: 'doc-2', filename: 'po.pdf' }]];
     mocks.schemasCalls = [
       [
         {
@@ -260,7 +262,7 @@ describe('getNextReviewItem', () => {
     // First lookup: doc-3's latest extraction is ext-new (not ext-old) -> mismatch, skip.
     // Second lookup: doc-4's latest extraction is ext-current -> matches fv-valid.
     mocks.extractionsCalls = [[{ id: 'ext-new', schemaId: 'schema-3' }], [{ id: 'ext-current', schemaId: 'schema-4' }]];
-    mocks.documentsCalls = [[{ id: 'doc-4', filename: 'good.pdf' }]];
+    mocks.documentsCalls = [[], [{ id: 'doc-4', filename: 'good.pdf' }]];
     mocks.schemasCalls = [
       [{ id: 'schema-4', fields: [{ key: 'vendor_name', label: 'Vendor', description: 'd', type: 'string', required: true, autoAcceptThreshold: 0.9 }] }],
     ];
@@ -285,7 +287,9 @@ describe('getNextReviewItem', () => {
 
   it('applies the batchId filter end-to-end when the batch does have documents', async () => {
     mocks.fieldValueRowsCalls = [[]];
-    mocks.documentsCalls = [[{ id: 'doc-5' }], [{ id: 'doc-5', filename: 'f.pdf' }]];
+    // Three documents-table calls: the batch-filter lookup, the archived-document
+    // exclusion lookup (empty), then the chosen candidate's own document lookup.
+    mocks.documentsCalls = [[{ id: 'doc-5' }], [], [{ id: 'doc-5', filename: 'f.pdf' }]];
     mocks.fieldValuesCalls = [
       [
         {
@@ -310,6 +314,42 @@ describe('getNextReviewItem', () => {
     const item = await getNextReviewItem('batch-x');
 
     expect(item?.documentId).toBe('doc-5');
+  });
+
+  it('queries for archived documents and still resolves a normal candidate when some exist elsewhere', async () => {
+    // This mock harness doesn't evaluate real SQL WHERE clauses (see every other test
+    // in this file) — it can't prove notInArray(...) actually excludes the archived
+    // document's own field_values from a live query. What it does prove: the archived-
+    // document lookup happens, and its result being non-empty doesn't corrupt normal
+    // candidate resolution. The SQL-level exclusion itself needs a live-DB check.
+    mocks.fieldValueRowsCalls = [[]];
+    mocks.documentsCalls = [[{ id: 'doc-archived' }], [{ id: 'doc-1', filename: 'invoice.pdf' }]];
+    mocks.fieldValuesCalls = [
+      [
+        {
+          id: 'fv-1',
+          documentId: 'doc-1',
+          extractionId: 'ext-1',
+          fieldKey: 'invoice_number',
+          fieldType: 'string',
+          rawValue: 'INV-1',
+          normalizedValue: 'INV-1',
+          confidence: '0.4',
+          confidenceParts: {},
+          validatorStatus: 'valid',
+          status: 'needs_review',
+        },
+      ],
+    ];
+    mocks.extractionsCalls = [[{ id: 'ext-1', schemaId: 'schema-1' }]];
+    mocks.schemasCalls = [
+      [{ id: 'schema-1', fields: [{ key: 'invoice_number', label: 'Invoice Number', description: 'd', type: 'string', required: true, autoAcceptThreshold: 0.9 }] }],
+    ];
+    mocks.pagesCalls = [[]];
+
+    const item = await getNextReviewItem();
+
+    expect(item?.fieldValueId).toBe('fv-1');
   });
 });
 
@@ -350,5 +390,22 @@ describe('getReviewQueueStats', () => {
     const stats = await getReviewQueueStats();
 
     expect(stats).toEqual({ totalItems: 5, needsReview: 2, autoAccepted: 1, confirmed: 1, corrected: 1 });
+  });
+
+  it('treats an archived document\'s extraction as nonexistent, short-circuiting to EMPTY_STATS when it is the only one', async () => {
+    // Unlike the field_values-level exclusion (SQL-based, not verifiable via this
+    // mock — see the getNextReviewItem archived-document test above), this exclusion
+    // is plain JS control flow over the already-fetched extractions list, so it's
+    // genuinely exercised here: if every extraction belongs to an archived document,
+    // currentExtractionIds ends up empty and the function short-circuits before ever
+    // querying field_value_rows/field_values, the same way "no extractions at all" does.
+    mocks.documentsCalls = [[{ id: 'doc-archived' }]];
+    mocks.extractionsCalls = [[{ documentId: 'doc-archived', id: 'ext-archived', startedAt: new Date('2026-01-01T00:00:00Z') }]];
+
+    const stats = await getReviewQueueStats();
+
+    expect(stats).toEqual({ totalItems: 0, needsReview: 0, autoAccepted: 0, confirmed: 0, corrected: 0 });
+    expect(mocks.fieldValueRowsCalls).toHaveLength(0);
+    expect(mocks.fieldValuesCalls).toHaveLength(0);
   });
 });

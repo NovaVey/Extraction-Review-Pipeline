@@ -1,4 +1,4 @@
-import { eq, and, or, inArray, asc, desc } from 'drizzle-orm';
+import { eq, and, or, inArray, notInArray, isNotNull, asc, desc } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { documents, extractions, extractionSchemas, fieldValues, fieldValueRows, pages } from '../db/schema.js';
 import type { FieldSpec, FieldType } from '../extract/schema.js';
@@ -77,6 +77,13 @@ export async function getNextReviewItem(batchId?: string): Promise<ReviewItem | 
     const batchDocumentIds = batchDocuments.map((d) => d.id);
     if (batchDocumentIds.length === 0) return null;
     conditions.push(inArray(fieldValues.documentId, batchDocumentIds));
+  }
+
+  // An archived document (soft-deleted "if needed" from the review flow) must never
+  // resurface here, regardless of its field_values' own status.
+  const archivedDocuments = await db.select({ id: documents.id }).from(documents).where(isNotNull(documents.archivedAt));
+  if (archivedDocuments.length > 0) {
+    conditions.push(notInArray(fieldValues.documentId, archivedDocuments.map((d) => d.id)));
   }
 
   // Lowest confidence first is a documented v1 simplification: a table field whose own
@@ -163,9 +170,15 @@ const EMPTY_STATS: ReviewQueueStats = { totalItems: 0, needsReview: 0, autoAccep
 // its own level still counts as needing review here if one of its rows does, since
 // that's exactly what would surface it in the queue.
 export async function getReviewQueueStats(): Promise<ReviewQueueStats> {
+  const archivedDocuments = await db.select({ id: documents.id }).from(documents).where(isNotNull(documents.archivedAt));
+  const archivedDocumentIds = new Set(archivedDocuments.map((d) => d.id));
+
   const allExtractions = await db.select({ documentId: extractions.documentId, id: extractions.id, startedAt: extractions.startedAt }).from(extractions);
   const latestByDocument = new Map<string, { id: string; startedAt: Date }>();
   for (const e of allExtractions) {
+    // Same soft-delete exclusion as getNextReviewItem — an archived document's
+    // field_values must never count toward these stats either.
+    if (archivedDocumentIds.has(e.documentId)) continue;
     const existing = latestByDocument.get(e.documentId);
     if (!existing || e.startedAt > existing.startedAt) latestByDocument.set(e.documentId, { id: e.id, startedAt: e.startedAt });
   }

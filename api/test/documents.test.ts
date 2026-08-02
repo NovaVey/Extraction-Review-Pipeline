@@ -41,13 +41,22 @@ vi.mock('../src/db/client.js', () => ({
   },
 }));
 
+vi.mock('../src/documents/archive.js', () => ({
+  archiveDocument: vi.fn(),
+  unarchiveDocument: vi.fn(),
+  DocumentNotFoundError: class DocumentNotFoundError extends Error {},
+}));
+
 const { buildApp } = await import('../src/app.js');
+const { archiveDocument, unarchiveDocument, DocumentNotFoundError } = await import('../src/documents/archive.js');
 
 beforeEach(() => {
   mocks.mockDocument = null;
   mocks.mockExtraction = null;
   mocks.mockFieldValues = [];
   mocks.mockFieldValueRows = [];
+  vi.mocked(archiveDocument).mockReset();
+  vi.mocked(unarchiveDocument).mockReset();
 });
 
 describe('GET /documents/:id/extraction', () => {
@@ -182,5 +191,59 @@ describe('GET /documents/:id/extraction', () => {
         },
       ],
     });
+  });
+});
+
+describe('POST /documents/:id/archive', () => {
+  it('round trips a successful archive', async () => {
+    vi.mocked(archiveDocument).mockResolvedValue({ id: 'doc-1', status: 'archived' });
+    const app = buildApp();
+
+    const res = await app.inject({ method: 'POST', url: '/documents/doc-1/archive', payload: { reviewer: 'alice' } });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ id: 'doc-1', status: 'archived' });
+    expect(archiveDocument).toHaveBeenCalledWith('doc-1', 'alice');
+  });
+
+  it('returns 404 document_not_found when the document does not exist', async () => {
+    vi.mocked(archiveDocument).mockRejectedValue(new DocumentNotFoundError('no such document'));
+    const app = buildApp();
+
+    const res = await app.inject({ method: 'POST', url: '/documents/missing/archive', payload: { reviewer: 'alice' } });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual({ error: 'document_not_found' });
+  });
+
+  it('returns 400 invalid_body when reviewer is missing', async () => {
+    const app = buildApp();
+    const res = await app.inject({ method: 'POST', url: '/documents/doc-1/archive', payload: {} });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('invalid_body');
+    expect(archiveDocument).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /documents/:id/unarchive', () => {
+  it('round trips a successful unarchive', async () => {
+    vi.mocked(unarchiveDocument).mockResolvedValue({ id: 'doc-1', status: 'active' });
+    const app = buildApp();
+
+    const res = await app.inject({ method: 'POST', url: '/documents/doc-1/unarchive' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ id: 'doc-1', status: 'active' });
+  });
+
+  it('returns 404 document_not_found when the document does not exist', async () => {
+    vi.mocked(unarchiveDocument).mockRejectedValue(new DocumentNotFoundError('no such document'));
+    const app = buildApp();
+
+    const res = await app.inject({ method: 'POST', url: '/documents/missing/unarchive' });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual({ error: 'document_not_found' });
   });
 });

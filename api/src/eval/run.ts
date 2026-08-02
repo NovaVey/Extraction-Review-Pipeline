@@ -97,13 +97,24 @@ function groupBy<K extends string>(fields: FieldEvalResult[], key: (f: FieldEval
 // broadens what gets the chance to be evaluated.
 export async function runEval(manifestPath?: string): Promise<EvalSummary> {
   const goldSet = loadGoldSet(manifestPath);
-  const allDocs = await db.select({ id: documents.id, filename: documents.filename }).from(documents).orderBy(documents.filename);
+  const allDocs = await db
+    .select({ id: documents.id, filename: documents.filename, archivedAt: documents.archivedAt })
+    .from(documents)
+    .orderBy(documents.filename);
 
   const documentsSkipped: Array<{ filename: string; reason: string }> = [];
   const fields: FieldEvalResult[] = [];
   let documentsEvaluated = 0;
 
   for (const doc of allDocs) {
+    // Fetched (not filtered out of the query) so a soft-deleted document still shows
+    // up in the report with an honest reason, matching this eval's own "no silent
+    // caps" standard for documentsSkipped rather than just vanishing from the count.
+    if (doc.archivedAt) {
+      documentsSkipped.push({ filename: doc.filename, reason: 'archived' });
+      continue;
+    }
+
     const gold = goldSet.get(doc.filename);
     if (!gold) {
       documentsSkipped.push({ filename: doc.filename, reason: 'not_in_gold_set' });
