@@ -1,4 +1,4 @@
-import type { ActionResult, ReviewItem, ReviewSession } from './types';
+import type { ActionResult, ReviewItem, ReviewQueueStats, ReviewSession } from './types';
 
 // Distinguishes a structured API error (status code + the route's `error` code,
 // e.g. 'not_needs_review') from a network failure, so callers can react to
@@ -52,6 +52,10 @@ export function fetchNextReviewItem(): Promise<{ item: ReviewItem | null }> {
   return request('/api/review/next');
 }
 
+export function fetchReviewQueueStats(): Promise<ReviewQueueStats> {
+  return request('/api/review/stats');
+}
+
 export function acceptField(fieldValueId: string, reviewer: string, reviewSessionId: string): Promise<ActionResult> {
   return request(`/api/review/fields/${fieldValueId}/accept`, {
     method: 'POST',
@@ -88,5 +92,26 @@ export function correctRow(
   return request(`/api/review/rows/${rowId}/correct`, {
     method: 'POST',
     body: JSON.stringify({ reviewer, columnKey, newValue, reviewSessionId }),
+  });
+}
+
+export function undoField(fieldValueId: string, reviewer: string, reviewSessionId: string): Promise<ActionResult> {
+  return request(`/api/review/fields/${fieldValueId}/undo`, {
+    method: 'POST',
+    body: JSON.stringify({ reviewer, reviewSessionId }),
+  });
+}
+
+export function undoRow(rowId: string, reviewer: string, reviewSessionId: string): Promise<ActionResult> {
+  return request(`/api/review/rows/${rowId}/undo`, {
+    method: 'POST',
+    body: JSON.stringify({ reviewer, reviewSessionId }),
+  });
+}
+
+export function archiveDocument(documentId: string, reviewer: string): Promise<{ id: string; status: string }> {
+  return request(`/api/documents/${documentId}/archive`, {
+    method: 'POST',
+    body: JSON.stringify({ reviewer }),
   });
 }

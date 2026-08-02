@@ -1,16 +1,19 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { getNextReviewItem } from '../review/queue.js';
+import { getNextReviewItem, getReviewQueueStats } from '../review/queue.js';
 import {
   acceptField,
   correctField,
   acceptRow,
   correctRow,
+  undoField,
+  undoRow,
   startReviewSession,
   endReviewSession,
   NotFoundError,
   SessionNotFoundError,
   NotNeedsReviewError,
+  NothingToUndoError,
   UnknownColumnKeyError,
 } from '../review/actions.js';
 import { isForeignKeyViolation } from '../lib/pgErrors.js';
@@ -76,6 +79,11 @@ export async function reviewRoutes(app: FastifyInstance) {
       }
       throw err;
     }
+  });
+
+  app.get('/review/stats', async (_req, reply) => {
+    const stats = await getReviewQueueStats();
+    reply.send(stats);
   });
 
   app.get<{ Querystring: { batchId?: string } }>('/review/next', async (req, reply) => {
@@ -161,6 +169,38 @@ export async function reviewRoutes(app: FastifyInstance) {
       if (err instanceof SessionNotFoundError) return reply.code(404).send({ error: 'review_session_not_found' });
       if (err instanceof NotNeedsReviewError) return reply.code(400).send({ error: 'not_needs_review' });
       if (err instanceof UnknownColumnKeyError) return reply.code(400).send({ error: 'unknown_column_key' });
+      throw err;
+    }
+  });
+
+  app.post<{ Params: { id: string } }>('/review/fields/:id/undo', async (req, reply) => {
+    const parsed = AcceptFieldBody.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'invalid_body', details: parsed.error.flatten() });
+    }
+    try {
+      const result = await undoField(req.params.id, parsed.data.reviewer, parsed.data.reviewSessionId);
+      reply.send(result);
+    } catch (err) {
+      if (err instanceof NotFoundError) return reply.code(404).send({ error: 'field_not_found' });
+      if (err instanceof SessionNotFoundError) return reply.code(404).send({ error: 'review_session_not_found' });
+      if (err instanceof NothingToUndoError) return reply.code(400).send({ error: 'nothing_to_undo' });
+      throw err;
+    }
+  });
+
+  app.post<{ Params: { id: string } }>('/review/rows/:id/undo', async (req, reply) => {
+    const parsed = AcceptRowBody.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'invalid_body', details: parsed.error.flatten() });
+    }
+    try {
+      const result = await undoRow(req.params.id, parsed.data.reviewer, parsed.data.reviewSessionId);
+      reply.send(result);
+    } catch (err) {
+      if (err instanceof NotFoundError) return reply.code(404).send({ error: 'review_row_not_found' });
+      if (err instanceof SessionNotFoundError) return reply.code(404).send({ error: 'review_session_not_found' });
+      if (err instanceof NothingToUndoError) return reply.code(400).send({ error: 'nothing_to_undo' });
       throw err;
     }
   });

@@ -45,6 +45,7 @@ vi.mock('../src/lib/storage.js', () => ({
 
 vi.mock('../src/review/queue.js', () => ({
   getNextReviewItem: vi.fn(),
+  getReviewQueueStats: vi.fn(),
 }));
 
 vi.mock('../src/review/actions.js', async (importOriginal) => {
@@ -55,26 +56,55 @@ vi.mock('../src/review/actions.js', async (importOriginal) => {
     correctField: vi.fn(),
     acceptRow: vi.fn(),
     correctRow: vi.fn(),
+    undoField: vi.fn(),
+    undoRow: vi.fn(),
     startReviewSession: vi.fn(),
     endReviewSession: vi.fn(),
   };
 });
 
 const { buildApp } = await import('../src/app.js');
-const { getNextReviewItem } = await import('../src/review/queue.js');
-const { acceptField, correctField, acceptRow, correctRow, startReviewSession, endReviewSession, NotFoundError, NotNeedsReviewError } =
-  await import('../src/review/actions.js');
+const { getNextReviewItem, getReviewQueueStats } = await import('../src/review/queue.js');
+const {
+  acceptField,
+  correctField,
+  acceptRow,
+  correctRow,
+  undoField,
+  undoRow,
+  startReviewSession,
+  endReviewSession,
+  NotFoundError,
+  NotNeedsReviewError,
+  NothingToUndoError,
+} = await import('../src/review/actions.js');
 
 beforeEach(() => {
   mocks.mockPage = null;
   mocks.downloadObject.mockClear();
   vi.mocked(getNextReviewItem).mockReset();
+  vi.mocked(getReviewQueueStats).mockReset();
   vi.mocked(acceptField).mockReset();
   vi.mocked(correctField).mockReset();
   vi.mocked(acceptRow).mockReset();
   vi.mocked(correctRow).mockReset();
+  vi.mocked(undoField).mockReset();
+  vi.mocked(undoRow).mockReset();
   vi.mocked(startReviewSession).mockReset();
   vi.mocked(endReviewSession).mockReset();
+});
+
+describe('GET /review/stats', () => {
+  it('returns whatever getReviewQueueStats resolves', async () => {
+    const stats = { totalItems: 5, needsReview: 2, autoAccepted: 1, confirmed: 1, corrected: 1 };
+    vi.mocked(getReviewQueueStats).mockResolvedValue(stats);
+
+    const app = buildApp();
+    const res = await app.inject({ method: 'GET', url: '/review/stats' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual(stats);
+  });
 });
 
 describe('GET /review/next', () => {
@@ -198,6 +228,49 @@ describe('POST /review/rows/:id/accept and /correct', () => {
 
     expect(res.statusCode).toBe(200);
     expect(correctRow).toHaveBeenCalledWith('row-1', 'alice', 'amount', '9.99', undefined, undefined);
+  });
+});
+
+describe('POST /review/fields/:id/undo and /review/rows/:id/undo', () => {
+  it('round trips a successful field undo', async () => {
+    vi.mocked(undoField).mockResolvedValue({ id: 'fv-1', status: 'needs_review' });
+    const app = buildApp();
+
+    const res = await app.inject({ method: 'POST', url: '/review/fields/fv-1/undo', payload: { reviewer: 'alice' } });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ id: 'fv-1', status: 'needs_review' });
+    expect(undoField).toHaveBeenCalledWith('fv-1', 'alice', undefined);
+  });
+
+  it('returns 400 nothing_to_undo when the field was never resolved by a review action', async () => {
+    vi.mocked(undoField).mockRejectedValue(new NothingToUndoError('nothing to undo'));
+    const app = buildApp();
+
+    const res = await app.inject({ method: 'POST', url: '/review/fields/fv-1/undo', payload: { reviewer: 'alice' } });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({ error: 'nothing_to_undo' });
+  });
+
+  it('round trips a successful row undo', async () => {
+    vi.mocked(undoRow).mockResolvedValue({ id: 'row-1', status: 'needs_review' });
+    const app = buildApp();
+
+    const res = await app.inject({ method: 'POST', url: '/review/rows/row-1/undo', payload: { reviewer: 'alice' } });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ id: 'row-1', status: 'needs_review' });
+  });
+
+  it('returns 404 review_row_not_found when the row does not exist', async () => {
+    vi.mocked(undoRow).mockRejectedValue(new NotFoundError('no such row'));
+    const app = buildApp();
+
+    const res = await app.inject({ method: 'POST', url: '/review/rows/missing/undo', payload: { reviewer: 'alice' } });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual({ error: 'review_row_not_found' });
   });
 });
 

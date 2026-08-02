@@ -1,4 +1,4 @@
-import { eq, and, or, inArray, asc, desc } from 'drizzle-orm';
+import { eq, and, or, inArray, notInArray, isNotNull, asc, desc } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { documents, extractions, extractionSchemas, fieldValues, fieldValueRows, pages } from '../db/schema.js';
 import type { FieldSpec, FieldType } from '../extract/schema.js';
@@ -79,6 +79,13 @@ export async function getNextReviewItem(batchId?: string): Promise<ReviewItem | 
     conditions.push(inArray(fieldValues.documentId, batchDocumentIds));
   }
 
+  // An archived document (soft-deleted "if needed" from the review flow) must never
+  // resurface here, regardless of its field_values' own status.
+  const archivedDocuments = await db.select({ id: documents.id }).from(documents).where(isNotNull(documents.archivedAt));
+  if (archivedDocuments.length > 0) {
+    conditions.push(notInArray(fieldValues.documentId, archivedDocuments.map((d) => d.id)));
+  }
+
   // Lowest confidence first is a documented v1 simplification: a table field whose own
   // confidence is high but which has one bad row isn't prioritized by that row's
   // severity. Acceptable for now rather than adding computed sort logic.
@@ -145,4 +152,53 @@ export async function getNextReviewItem(batchId?: string): Promise<ReviewItem | 
     rows,
     pages: pageRows.map((p) => ({ id: p.id, pageNumber: p.pageNumber, width: p.width, height: p.height })),
   };
+}
+
+export interface ReviewQueueStats {
+  totalItems: number;
+  needsReview: number;
+  autoAccepted: number;
+  confirmed: number;
+  corrected: number;
+}
+
+const EMPTY_STATS: ReviewQueueStats = { totalItems: 0, needsReview: 0, autoAccepted: 0, confirmed: 0, corrected: 0 };
+
+// Same "only a document's current extraction counts" rule as getNextReviewItem (a
+// re-extracted document's superseded field_values must not be counted, needs_review
+// or otherwise) and the same row-candidate OR-ing — a field already auto_accepted at
+// its own level still counts as needing review here if one of its rows does, since
+// that's exactly what would surface it in the queue.
+export async function getReviewQueueStats(): Promise<ReviewQueueStats> {
+  const archivedDocuments = await db.select({ id: documents.id }).from(documents).where(isNotNull(documents.archivedAt));
+  const archivedDocumentIds = new Set(archivedDocuments.map((d) => d.id));
+
+  const allExtractions = await db.select({ documentId: extractions.documentId, id: extractions.id, startedAt: extractions.startedAt }).from(extractions);
+  const latestByDocument = new Map<string, { id: string; startedAt: Date }>();
+  for (const e of allExtractions) {
+    // Same soft-delete exclusion as getNextReviewItem — an archived document's
+    // field_values must never count toward these stats either.
+    if (archivedDocumentIds.has(e.documentId)) continue;
+    const existing = latestByDocument.get(e.documentId);
+    if (!existing || e.startedAt > existing.startedAt) latestByDocument.set(e.documentId, { id: e.id, startedAt: e.startedAt });
+  }
+  const currentExtractionIds = [...new Set([...latestByDocument.values()].map((v) => v.id))];
+  if (currentExtractionIds.length === 0) return EMPTY_STATS;
+
+  const needsReviewRows = await db.select({ fieldValueId: fieldValueRows.fieldValueId }).from(fieldValueRows).where(eq(fieldValueRows.status, 'needs_review'));
+  const rowPendingFieldValueIds = new Set(needsReviewRows.map((r) => r.fieldValueId));
+
+  const currentFieldValues = await db
+    .select({ id: fieldValues.id, status: fieldValues.status })
+    .from(fieldValues)
+    .where(inArray(fieldValues.extractionId, currentExtractionIds));
+
+  const stats = { ...EMPTY_STATS, totalItems: currentFieldValues.length };
+  for (const fv of currentFieldValues) {
+    if (fv.status === 'needs_review' || rowPendingFieldValueIds.has(fv.id)) stats.needsReview++;
+    else if (fv.status === 'auto_accepted') stats.autoAccepted++;
+    else if (fv.status === 'confirmed') stats.confirmed++;
+    else if (fv.status === 'corrected') stats.corrected++;
+  }
+  return stats;
 }

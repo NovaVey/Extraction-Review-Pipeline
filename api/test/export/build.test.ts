@@ -158,4 +158,14 @@ describe('buildBatchExportCsv', () => {
     expect(result.rowCount).toBe(0);
     expect(result.skippedDocumentCount).toBe(1);
   });
+
+  it('skips an archived document without ever looking up its extraction', async () => {
+    mocks.documentsCalls = [[{ id: 'doc-1', filename: 'inv.pdf', uploadedAt: new Date(), archivedAt: new Date() }]];
+
+    const result = await buildBatchExportCsv('batch-1', false);
+
+    expect(result.rowCount).toBe(0);
+    expect(result.skippedDocumentCount).toBe(1);
+    expect(mocks.extractionsCalls).toHaveLength(0);
+  });
 });

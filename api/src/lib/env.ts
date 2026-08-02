@@ -19,6 +19,10 @@ const EnvSchema = z.object({
   SUBSET_SIZE: z.coerce.number().int().positive().default(10),
   RETENTION_DAYS: z.coerce.number().int().positive().default(90),
   PORT: z.coerce.number().int().positive().default(3000),
+  // Optional on purpose: unset means the auth gate (lib/auth.ts) stays a no-op,
+  // which is what local dev and every existing test rely on today. Deployments
+  // that are actually internet-reachable should set this.
+  API_SHARED_SECRET: z.string().min(1).optional(),
 });
 
 export const env = EnvSchema.parse(process.env);

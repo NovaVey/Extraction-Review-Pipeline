@@ -1,1 +1,21 @@
 @import "tailwindcss";
+
+@theme {
+  --color-brand: #4f46e5;
+  --color-brand-hover: #4338ca;
+  --color-brand-subtle: #eef2ff;
+}
+
+/* One consistent focus treatment for every interactive control, rather than
+   repeating focus-visible: classes on each of them — and it doesn't depend on
+   whatever outline the browser/OS theme happens to render by default. */
+@layer base {
+  button:focus-visible,
+  input:focus-visible,
+  a:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+}

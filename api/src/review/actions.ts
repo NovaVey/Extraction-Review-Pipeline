@@ -17,6 +17,11 @@ export class NotNeedsReviewError extends Error {}
 // correctRow-specific: the requested column isn't one of the row's actual cells.
 export class UnknownColumnKeyError extends Error {}
 
+// undoField/undoRow-specific: the target was never resolved by a human action —
+// still needs_review (nothing happened yet) or auto_accepted (the model's own
+// decision, not a reviewer's to undo).
+export class NothingToUndoError extends Error {}
+
 export interface ActionResult {
   id: string;
   status: string;
@@ -210,6 +215,69 @@ export async function correctRow(
   await bumpSessionCounters(reviewSessionId, { reviewed: 1, corrected: 1 });
 
   return { id: fieldValueRowId, status: 'confirmed' };
+}
+
+// Reverses the effect of the reviewer's OWN last action — not the model's. Only
+// 'confirmed'/'corrected' (a human touched it) is undoable; 'needs_review' (nothing
+// happened) and 'auto_accepted' (the model's own decision) both throw, same as
+// acceptField/correctField throw NotNeedsReviewError for the mirror-image case.
+export async function undoField(fieldValueId: string, reviewer: string, reviewSessionId?: string): Promise<ActionResult> {
+  await assertSessionExists(reviewSessionId);
+  const [field] = await db.select().from(fieldValues).where(eq(fieldValues.id, fieldValueId)).limit(1);
+  if (!field) throw new NotFoundError(`Field value not found: ${fieldValueId}`);
+  if (field.status !== 'confirmed' && field.status !== 'corrected') {
+    throw new NothingToUndoError(`Field value ${fieldValueId} was not resolved by a review action (status: ${field.status})`);
+  }
+  const wasCorrected = field.status === 'corrected';
+
+  await db
+    .update(fieldValues)
+    .set({ status: 'needs_review', finalValue: null, reviewedBy: null, reviewedAt: null })
+    .where(eq(fieldValues.id, fieldValueId));
+
+  // A new audit entry, not a deletion of the original correction — reverting to the
+  // model's own value is itself a reviewer action worth a truthful record of, same as
+  // every other mutation in this file.
+  await db.insert(corrections).values({
+    fieldValueId,
+    oldValue: field.finalValue,
+    newValue: auditValue(field.normalizedValue),
+    reason: 'undo',
+    correctedBy: reviewer,
+  });
+
+  await bumpSessionCounters(reviewSessionId, { reviewed: -1, corrected: wasCorrected ? -1 : 0 });
+
+  return { id: fieldValueId, status: 'needs_review' };
+}
+
+export async function undoRow(fieldValueRowId: string, reviewer: string, reviewSessionId?: string): Promise<ActionResult> {
+  await assertSessionExists(reviewSessionId);
+  const [row] = await db.select().from(fieldValueRows).where(eq(fieldValueRows.id, fieldValueRowId)).limit(1);
+  if (!row) throw new NotFoundError(`Field value row not found: ${fieldValueRowId}`);
+  if (row.status !== 'confirmed') {
+    throw new NothingToUndoError(`Field value row ${fieldValueRowId} was not resolved by a review action (status: ${row.status})`);
+  }
+
+  // Rows share one status ('confirmed') for both accept-as-is and correct (see
+  // correctRow) — whether this undo should also reverse a "corrected" session count
+  // is inferred the same way the review UI itself distinguishes the two: whether the
+  // reviewed cells actually differ from what was originally extracted.
+  const wasCorrected = JSON.stringify(row.finalCells) !== JSON.stringify(row.cells);
+
+  await db.update(fieldValueRows).set({ status: 'needs_review', finalCells: null }).where(eq(fieldValueRows.id, fieldValueRowId));
+
+  await db.insert(corrections).values({
+    fieldValueRowId,
+    oldValue: JSON.stringify(row.finalCells),
+    newValue: JSON.stringify(row.cells),
+    reason: 'undo',
+    correctedBy: reviewer,
+  });
+
+  await bumpSessionCounters(reviewSessionId, { reviewed: -1, corrected: wasCorrected ? -1 : 0 });
+
+  return { id: fieldValueRowId, status: 'needs_review' };
 }
 
 export interface StartedReviewSession {

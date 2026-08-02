@@ -48,6 +48,14 @@ export async function buildBatchExportCsv(batchId: string, includeUnresolved: bo
   let skippedDocumentCount = 0;
 
   for (const doc of docs) {
+    // A soft-deleted document must not appear in an export any more than it appears
+    // in the review queue — its rows/Storage files are kept, but it's no longer part
+    // of what this batch actually delivers.
+    if (doc.archivedAt) {
+      skippedDocumentCount++;
+      continue;
+    }
+
     // Same lesson as review/queue.ts: a document can have multiple extractions rows
     // over time (re-running extraction inserts a new one each run) — only the current
     // one is meaningful to export.

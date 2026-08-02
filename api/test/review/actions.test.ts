@@ -65,11 +65,14 @@ const {
   correctField,
   acceptRow,
   correctRow,
+  undoField,
+  undoRow,
   startReviewSession,
   endReviewSession,
   NotFoundError,
   SessionNotFoundError,
   NotNeedsReviewError,
+  NothingToUndoError,
   UnknownColumnKeyError,
 } = await import('../../src/review/actions.js');
 
@@ -296,6 +299,95 @@ describe('correctRow', () => {
     await correctRow('row-1', 'alice', 'amount', '9.99', undefined);
 
     expect(insertsTo(corrections)[0].values).toMatchObject({ oldValue: null, newValue: '9.99' });
+  });
+});
+
+describe('undoField', () => {
+  it('throws NotFoundError when missing, NothingToUndoError when needs_review or auto_accepted', async () => {
+    mocks.fieldValuesResult = [];
+    await expect(undoField('missing', 'alice')).rejects.toThrow(NotFoundError);
+
+    mocks.fieldValuesResult = [{ id: 'fv-1', status: 'needs_review', normalizedValue: 'x', finalValue: null }];
+    await expect(undoField('fv-1', 'alice')).rejects.toThrow(NothingToUndoError);
+
+    mocks.fieldValuesResult = [{ id: 'fv-1', status: 'auto_accepted', normalizedValue: 'x', finalValue: null }];
+    await expect(undoField('fv-1', 'alice')).rejects.toThrow(NothingToUndoError);
+  });
+
+  it('reverts a confirmed field to needs_review, clearing finalValue/reviewedBy/reviewedAt, and decrements only itemsReviewed', async () => {
+    mocks.fieldValuesResult = [{ id: 'fv-1', status: 'confirmed', normalizedValue: 'INV-1', finalValue: 'INV-1' }];
+    mocks.reviewSessionsResult = [{ id: 'session-1', itemsReviewed: 3, itemsCorrected: 1 }];
+
+    const result = await undoField('fv-1', 'alice', 'session-1');
+
+    expect(result).toEqual({ id: 'fv-1', status: 'needs_review' });
+    expect(updatesTo(fieldValues)[0].values).toMatchObject({
+      status: 'needs_review',
+      finalValue: null,
+      reviewedBy: null,
+      reviewedAt: null,
+    });
+    expect(insertsTo(corrections)[0].values).toMatchObject({
+      fieldValueId: 'fv-1',
+      oldValue: 'INV-1',
+      newValue: 'INV-1',
+      reason: 'undo',
+      correctedBy: 'alice',
+    });
+    const sessionUpdate = updatesTo(reviewSessions)[0].values;
+    expect(sqlDelta(sessionUpdate.itemsReviewed)).toBe(-1);
+    expect(sqlDelta(sessionUpdate.itemsCorrected)).toBe(0);
+  });
+
+  it('reverting a corrected field also decrements itemsCorrected', async () => {
+    mocks.fieldValuesResult = [{ id: 'fv-1', status: 'corrected', normalizedValue: 'INV-1', finalValue: 'INV-2' }];
+    mocks.reviewSessionsResult = [{ id: 'session-1', itemsReviewed: 3, itemsCorrected: 1 }];
+
+    await undoField('fv-1', 'alice', 'session-1');
+
+    const sessionUpdate = updatesTo(reviewSessions)[0].values;
+    expect(sqlDelta(sessionUpdate.itemsReviewed)).toBe(-1);
+    expect(sqlDelta(sessionUpdate.itemsCorrected)).toBe(-1);
+  });
+});
+
+describe('undoRow', () => {
+  it('throws NotFoundError when missing, NothingToUndoError when needs_review or auto_accepted', async () => {
+    mocks.fieldValueRowsResult = [];
+    await expect(undoRow('missing-row', 'alice')).rejects.toThrow(NotFoundError);
+
+    mocks.fieldValueRowsResult = [{ id: 'row-1', status: 'needs_review', cells: {}, finalCells: null }];
+    await expect(undoRow('row-1', 'alice')).rejects.toThrow(NothingToUndoError);
+
+    mocks.fieldValueRowsResult = [{ id: 'row-1', status: 'auto_accepted', cells: {}, finalCells: null }];
+    await expect(undoRow('row-1', 'alice')).rejects.toThrow(NothingToUndoError);
+  });
+
+  it('reverts an accepted-as-is row (finalCells === cells) to needs_review, decrementing only itemsReviewed', async () => {
+    const cells = { description: 'Widget', amount: '1.00' };
+    mocks.fieldValueRowsResult = [{ id: 'row-1', status: 'confirmed', cells, finalCells: cells }];
+    mocks.reviewSessionsResult = [{ id: 'session-1', itemsReviewed: 2, itemsCorrected: 0 }];
+
+    const result = await undoRow('row-1', 'alice', 'session-1');
+
+    expect(result).toEqual({ id: 'row-1', status: 'needs_review' });
+    expect(updatesTo(fieldValueRows)[0].values).toMatchObject({ status: 'needs_review', finalCells: null });
+    const sessionUpdate = updatesTo(reviewSessions)[0].values;
+    expect(sqlDelta(sessionUpdate.itemsReviewed)).toBe(-1);
+    expect(sqlDelta(sessionUpdate.itemsCorrected)).toBe(0);
+  });
+
+  it('reverting a row whose finalCells differ from cells (was corrected) also decrements itemsCorrected', async () => {
+    mocks.fieldValueRowsResult = [
+      { id: 'row-1', status: 'confirmed', cells: { amount: '1.00' }, finalCells: { amount: '9.99' } },
+    ];
+    mocks.reviewSessionsResult = [{ id: 'session-1', itemsReviewed: 2, itemsCorrected: 1 }];
+
+    await undoRow('row-1', 'alice', 'session-1');
+
+    const sessionUpdate = updatesTo(reviewSessions)[0].values;
+    expect(sqlDelta(sessionUpdate.itemsReviewed)).toBe(-1);
+    expect(sqlDelta(sessionUpdate.itemsCorrected)).toBe(-1);
   });
 });
 
