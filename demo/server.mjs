@@ -16,7 +16,7 @@ const RESET_INTERVAL_MS = 10 * 60 * 1000;
 
 const pageA = { id: 'page-1', pageNumber: 1, width: 1224, height: 1584, file: 'invoice_clean_01_p1.png' };
 const pageB = { id: 'page-2', pageNumber: 1, width: 1224, height: 1584, file: 'invoice_clean_04_p1.png' };
-const pageC = { id: 'page-3', pageNumber: 1, width: 1224, height: 1584, file: 'invoice_scanned_01_p1.png' };
+const pageC = { id: 'page-3', pageNumber: 1, width: 1224, height: 1584, file: 'invoice_clean_07_p1.png' };
 
 const lineItemColumns = [
   { key: 'description', label: 'Description', type: 'string' },
@@ -67,10 +67,10 @@ const itemC = {
 };
 
 const itemD = {
-  fieldValueId: 'fv-invoicenum-1', documentId: 'doc-3', documentFilename: 'invoice_scanned_01.pdf',
+  fieldValueId: 'fv-invoicenum-1', documentId: 'doc-3', documentFilename: 'invoice_clean_07.pdf',
   fieldKey: 'invoice_number', fieldType: 'string', label: 'Invoice Number',
   description: 'The unique identifier printed on the invoice.',
-  rawValue: 'INV-22841', normalizedValue: 'INV-22841',
+  rawValue: 'INV-31S87', normalizedValue: 'INV-31S87',
   confidence: '0.58', confidenceParts: { sampleAgreement: 0.5, validatorStatus: 'valid', crossFieldChecks: [] },
   validatorStatus: 'valid', status: 'needs_review', rows: null, pages: [pageC],
 };
