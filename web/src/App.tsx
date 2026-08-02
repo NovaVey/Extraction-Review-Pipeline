@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { CheckCircle2, FileCheck2 } from 'lucide-react';
 import {
   ApiError,
   acceptField,
@@ -26,6 +27,10 @@ function App() {
   const [itemsReviewed, setItemsReviewed] = useState(0);
   const [itemsCorrected, setItemsCorrected] = useState(0);
   const [queueState, setQueueState] = useState<QueueState>({ status: 'loading' });
+  // True while a refetch is in flight after an already-resolved item — the two-pane
+  // layout stays mounted and dimmed rather than getting torn down, so a fast
+  // accept/correct doesn't visibly flash to a blank loading screen on every keystroke.
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const [stats, setStats] = useState<ReviewQueueStats | null>(null);
 
   const beginSession = useCallback((reviewer: string) => {
@@ -49,10 +54,25 @@ function App() {
   }, [reviewSessionId]);
 
   const refetchQueue = useCallback(() => {
-    setQueueState({ status: 'loading' });
+    // Only blank the screen for a true first load (or after an error) — once
+    // something is already showing, keep it on screen (marked "transitioning")
+    // while the next item loads instead of unmounting the whole two-pane layout.
+    setQueueState((prev) => {
+      if (prev.status === 'loaded') {
+        setIsTransitioning(true);
+        return prev;
+      }
+      return { status: 'loading' };
+    });
     fetchNextReviewItem()
-      .then(({ item }) => setQueueState({ status: 'loaded', item }))
-      .catch(() => setQueueState({ status: 'error', message: 'Could not reach the review queue.' }));
+      .then(({ item }) => {
+        setQueueState({ status: 'loaded', item });
+        setIsTransitioning(false);
+      })
+      .catch(() => {
+        setQueueState({ status: 'error', message: 'Could not reach the review queue.' });
+        setIsTransitioning(false);
+      });
   }, []);
 
   useEffect(() => {
@@ -73,15 +93,17 @@ function App() {
 
   // Shared by every accept/correct control: bump the right local counters and
   // let the next /review/next call naturally advance the queue, rather than
-  // guessing client-side what the next item should be.
+  // guessing client-side what the next item should be. The short delay before
+  // refetchQueue gives the caller (ReviewPane/RowTable) a brief window to show a
+  // "Saved" confirmation on the still-fully-rendered item before it transitions.
   const runAction = useCallback(
     async (action: () => Promise<ActionResult>, delta: { reviewed: number; corrected: number }): Promise<ActionOutcome> => {
       try {
         await action();
         setItemsReviewed((n) => n + delta.reviewed);
         setItemsCorrected((n) => n + delta.corrected);
-        refetchQueue();
         refetchStats();
+        setTimeout(refetchQueue, 400);
         return { ok: true };
       } catch (err) {
         // Someone/something else already resolved this item (plausible on a
@@ -129,10 +151,10 @@ function App() {
     [reviewerName, reviewSessionId, runAction],
   );
 
-  // The one true global hotkey: nothing focused (the resting state right after
-  // a new item loads) + Enter = accept the top-level field as-is. Deliberately
-  // narrow — every input's own onKeyDown stops Enter from bubbling here, so a
-  // keypress inside a field never double-fires this.
+  // The one true global hotkey: nothing focused (the resting state if the value
+  // input has been blurred, e.g. via Esc) + Enter = accept the top-level field as
+  // -is. The common case goes through the value input's own autofocused handler
+  // instead (see ReviewPane) — this is the fallback path, not the primary one.
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key !== 'Enter') return;
@@ -175,11 +197,11 @@ function App() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#FCFCFD] text-[#101114]">
+    <div className="flex h-screen flex-col overflow-hidden bg-[#FCFCFD] text-[#101114]">
       <Header reviewerName={reviewerName} itemsReviewed={itemsReviewed} itemsCorrected={itemsCorrected} onChangeReviewer={handleChangeReviewer} />
-      <div className="flex flex-1">
+      <div className="flex min-h-0 flex-1">
         <QueueSidebar stats={stats} />
-        <main className="flex-1 p-4">
+        <main className="min-h-0 flex-1 overflow-y-auto p-4">
           {sessionError && !reviewSessionId ? (
             <ErrorState message={sessionError} onRetry={handleRetry} />
           ) : queueState.status === 'loading' ? (
@@ -187,12 +209,14 @@ function App() {
           ) : queueState.status === 'error' ? (
             <ErrorState message={queueState.message} onRetry={handleRetry} />
           ) : queueState.item === null ? (
-            <EmptyState />
+            <EmptyState itemsReviewed={itemsReviewed} itemsCorrected={itemsCorrected} />
           ) : (
-            <div className="grid h-[calc(100vh-6.5rem)] grid-cols-1 gap-4 lg:grid-cols-2">
-              <DocViewer key={queueState.item.fieldValueId} pages={queueState.item.pages} />
+            <div
+              className={`grid h-full grid-cols-1 gap-4 transition-opacity duration-150 lg:grid-cols-2 ${isTransitioning ? 'pointer-events-none opacity-50' : ''}`}
+            >
+              <DocViewer key={`doc-${queueState.item.fieldValueId}`} pages={queueState.item.pages} />
               <ReviewPane
-                key={queueState.item.fieldValueId}
+                key={`review-${queueState.item.fieldValueId}`}
                 item={queueState.item}
                 onAcceptField={handleAcceptField}
                 onCorrectField={handleCorrectField}
@@ -204,6 +228,14 @@ function App() {
         </main>
       </div>
     </div>
+  );
+}
+
+function Logo({ size = 18 }: { size?: number }) {
+  return (
+    <span className="flex shrink-0 items-center justify-center rounded-md bg-brand text-white" style={{ width: size + 10, height: size + 10 }}>
+      <FileCheck2 size={size} strokeWidth={2.25} />
+    </span>
   );
 }
 
@@ -221,16 +253,17 @@ function Header({
   return (
     <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E5E7EB] bg-white px-4 py-2">
       <div className="flex items-center gap-3">
-        <span className="text-sm font-semibold">Extraction Review</span>
-        <span className="text-xs text-[#6B7280]">
+        <Logo size={15} />
+        <span className="text-sm font-semibold tracking-tight">Extraction Review</span>
+        <span className="text-xs font-medium text-[#4B5563]">
           {itemsReviewed} reviewed, {itemsCorrected} corrected
         </span>
       </div>
       <div className="flex items-center gap-3">
-        <span className="hidden text-xs text-[#6B7280] sm:inline">Enter to accept · Tab to edit a value, Enter to save · Esc to reset</span>
-        <span className="text-xs text-[#6B7280]">
+        <span className="hidden text-xs text-[#4B5563] sm:inline">Enter to accept · start typing to edit, Enter to save · Esc to reset</span>
+        <span className="text-xs text-[#4B5563]">
           Reviewing as {reviewerName}{' '}
-          <button type="button" onClick={onChangeReviewer} className="text-[#101114] underline">
+          <button type="button" onClick={onChangeReviewer} className="text-brand underline">
             change
           </button>
         </span>
@@ -250,9 +283,10 @@ function ReviewerGate({ onSubmit }: { onSubmit: (name: string) => void }) {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#FCFCFD] text-[#101114]">
-      <form onSubmit={handleSubmit} className="flex w-72 flex-col gap-3 rounded border border-[#E5E7EB] bg-white p-6 text-center">
-        <h1 className="text-lg font-semibold">Extraction Review</h1>
-        <p className="text-sm text-[#6B7280]">Enter your name to start reviewing.</p>
+      <form onSubmit={handleSubmit} className="flex w-80 flex-col items-center gap-3 rounded-xl border border-[#E5E7EB] bg-white p-8 text-center shadow-sm">
+        <Logo size={22} />
+        <h1 className="text-xl font-semibold tracking-tight">Extraction Review</h1>
+        <p className="text-sm text-[#4B5563]">Verify extracted invoice, receipt, and PO data before it hits your books.</p>
         <input
           type="text"
           value={name}
@@ -267,9 +301,9 @@ function ReviewerGate({ onSubmit }: { onSubmit: (name: string) => void }) {
           }}
           placeholder="Your name"
           autoFocus
-          className="rounded border border-[#E5E7EB] px-3 py-1.5 text-sm"
+          className="mt-2 w-full rounded-md border border-[#D1D5DB] px-3 py-1.5 text-sm"
         />
-        <button type="submit" className="rounded border border-[#101114] bg-[#101114] px-3 py-1.5 text-sm font-medium text-white">
+        <button type="submit" className="w-full rounded-md border border-brand bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover">
           Start reviewing
         </button>
       </form>
@@ -287,23 +321,37 @@ function LoadingState() {
   }, []);
 
   if (!showSpinner) return null;
-  return <div className="flex h-64 items-center justify-center text-sm text-[#6B7280]">Loading…</div>;
+  return (
+    <div role="status" aria-live="polite" className="flex h-64 items-center justify-center text-sm text-[#4B5563]">
+      Loading…
+    </div>
+  );
 }
 
-function EmptyState() {
+function EmptyState({ itemsReviewed, itemsCorrected }: { itemsReviewed: number; itemsCorrected: number }) {
   return (
-    <div className="flex h-64 flex-col items-center justify-center gap-1 text-center">
-      <p className="text-base font-medium">All caught up</p>
-      <p className="text-sm text-[#6B7280]">Nothing needs review right now.</p>
+    <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+      <div className="flex flex-col items-center gap-3 rounded-xl border border-[#E5E7EB] bg-white px-10 py-8 shadow-sm">
+        <CheckCircle2 className="text-green-600" size={40} strokeWidth={1.75} />
+        <div>
+          <p className="text-base font-semibold">All caught up</p>
+          <p className="text-sm text-[#4B5563]">Nothing needs review right now.</p>
+        </div>
+        {itemsReviewed > 0 && (
+          <p className="mt-1 text-xs text-[#4B5563]">
+            This session: <span className="font-medium text-[#101114]">{itemsReviewed} reviewed</span>, {itemsCorrected} corrected.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
 
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
-    <div className="flex h-64 flex-col items-center justify-center gap-3 text-center">
+    <div role="alert" className="flex h-64 flex-col items-center justify-center gap-3 text-center">
       <p className="text-sm text-red-600">{message}</p>
-      <button type="button" onClick={onRetry} className="rounded border border-[#101114] bg-[#101114] px-3 py-1.5 text-sm font-medium text-white">
+      <button type="button" onClick={onRetry} className="rounded-md border border-brand bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover">
         Retry
       </button>
     </div>
