@@ -2,6 +2,7 @@ import { eq, desc } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { batches, documents, extractions, extractionSchemas, fieldValues, fieldValueRows } from '../db/schema.js';
 import type { FieldSpec } from '../extract/schema.js';
+import { RESOLVED_STATUSES } from '../review/status.js';
 import { buildCsv } from './csv.js';
 
 export class NotFoundError extends Error {}
@@ -11,11 +12,6 @@ export interface BuildExportResult {
   rowCount: number;
   skippedDocumentCount: number;
 }
-
-// A field only counts as "resolved" once either the model auto-accepted it or a
-// human has looked at it. 'needs_review' and 'pending' (the latter shouldn't occur
-// post-Phase-4, but isn't assumed away) are not.
-const RESOLVED_STATUSES = new Set(['auto_accepted', 'confirmed', 'corrected']);
 
 // Exports are meant to be numbers a client can act on, so an unresolved field's value
 // is blanked out by default rather than exported as if it were final — the whole

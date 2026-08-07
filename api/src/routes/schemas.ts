@@ -11,6 +11,7 @@ const ColumnSpecSchema = z.object({
   label: z.string().min(1),
   type: z.enum(FIELD_TYPES),
   required: z.boolean(),
+  enumValues: z.array(z.string()).optional(),
 });
 
 const FieldSpecSchema = z.object({

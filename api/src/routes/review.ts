@@ -14,6 +14,7 @@ import {
   SessionNotFoundError,
   NotNeedsReviewError,
   NothingToUndoError,
+  TableFieldUndoUnsupportedError,
   UnknownColumnKeyError,
 } from '../review/actions.js';
 import { isForeignKeyViolation } from '../lib/pgErrors.js';
@@ -185,6 +186,7 @@ export async function reviewRoutes(app: FastifyInstance) {
       if (err instanceof NotFoundError) return reply.code(404).send({ error: 'field_not_found' });
       if (err instanceof SessionNotFoundError) return reply.code(404).send({ error: 'review_session_not_found' });
       if (err instanceof NothingToUndoError) return reply.code(400).send({ error: 'nothing_to_undo' });
+      if (err instanceof TableFieldUndoUnsupportedError) return reply.code(400).send({ error: 'table_field_undo_unsupported' });
       throw err;
     }
   });

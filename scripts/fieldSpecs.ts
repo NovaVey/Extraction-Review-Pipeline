@@ -10,6 +10,7 @@ export interface ColumnSpec {
   label: string;
   type: FieldType;
   required: boolean;
+  enumValues?: string[];
 }
 
 export interface FieldSpec {

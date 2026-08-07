@@ -2,6 +2,7 @@ import { eq, desc } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { documents, extractions, fieldValues, fieldValueRows } from '../db/schema.js';
 import type { FieldType } from '../extract/schema.js';
+import { RESOLVED_STATUSES } from '../review/status.js';
 import { loadGoldSet } from './goldSet.js';
 import { valuesMatch, compareLineItems } from './compare.js';
 
@@ -46,8 +47,6 @@ export interface EvalSummary {
   byDocType: Record<string, GroupStats>;
   byDifficultyGroup: Record<string, GroupStats>;
 }
-
-const RESOLVED_STATUSES = new Set(['auto_accepted', 'confirmed', 'corrected']);
 
 function rate(matched: number, total: number): RateStat {
   return { matched, total, rate: total === 0 ? null : matched / total };

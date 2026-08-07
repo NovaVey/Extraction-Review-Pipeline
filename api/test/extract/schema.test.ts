@@ -22,6 +22,7 @@ const FIELDS: FieldSpec[] = [
     columns: [
       { key: 'description', label: 'Description', type: 'string', required: true },
       { key: 'quantity', label: 'Quantity', type: 'number', required: true },
+      { key: 'unit', label: 'Unit', type: 'enum', required: true, enumValues: ['each', 'case', 'pallet'] },
     ],
   },
 ];
@@ -62,10 +63,17 @@ describe('buildExtractionJsonSchema', () => {
         properties: {
           description: { type: 'string', description: 'Description' },
           quantity: { type: 'number', description: 'Quantity' },
+          unit: { type: 'string', enum: ['each', 'case', 'pallet'], description: 'Unit' },
         },
-        required: ['description', 'quantity'],
+        required: ['description', 'quantity', 'unit'],
         additionalProperties: false,
       },
     });
+  });
+
+  it('threads a table column\'s own enumValues through — a column has no way to fall back to the parent field\'s, since it has none', () => {
+    const columnSchema = (schema.properties.line_items as { items: { properties: Record<string, any> } }).items.properties.unit;
+    expect(columnSchema.enum).toEqual(['each', 'case', 'pallet']);
+    expect(columnSchema.enum.length).toBeGreaterThan(0); // the regression this guards: an omitted enumValues silently became `enum: []`, unsatisfiable by any string
   });
 });

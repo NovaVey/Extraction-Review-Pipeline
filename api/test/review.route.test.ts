@@ -77,6 +77,7 @@ const {
   NotFoundError,
   NotNeedsReviewError,
   NothingToUndoError,
+  TableFieldUndoUnsupportedError,
 } = await import('../src/review/actions.js');
 
 beforeEach(() => {
@@ -251,6 +252,16 @@ describe('POST /review/fields/:id/undo and /review/rows/:id/undo', () => {
 
     expect(res.statusCode).toBe(400);
     expect(res.json()).toEqual({ error: 'nothing_to_undo' });
+  });
+
+  it('returns 400 table_field_undo_unsupported when undoing a table field whose rows may have been bulk-resolved', async () => {
+    vi.mocked(undoField).mockRejectedValue(new TableFieldUndoUnsupportedError('unsupported'));
+    const app = buildApp();
+
+    const res = await app.inject({ method: 'POST', url: '/review/fields/fv-1/undo', payload: { reviewer: 'alice' } });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({ error: 'table_field_undo_unsupported' });
   });
 
   it('round trips a successful row undo', async () => {
