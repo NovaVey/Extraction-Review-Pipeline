@@ -156,7 +156,11 @@ async function serveStatic(req, res) {
   let rel = decodeURIComponent(url.pathname);
   if (rel === '/' || rel === '') rel = '/index.html';
   const resolved = path.normalize(path.join(STATIC_DIR, rel));
-  const target = resolved.startsWith(STATIC_DIR) && existsSync(resolved) && !rel.endsWith('/')
+  // Boundary-checked, not just a string prefix check — `resolved.startsWith(STATIC_DIR)`
+  // alone would also match a sibling directory whose name happens to start with the
+  // same string (e.g. a future "dist-backup" next to "dist").
+  const withinStaticDir = resolved === STATIC_DIR || resolved.startsWith(STATIC_DIR + path.sep);
+  const target = withinStaticDir && existsSync(resolved) && !rel.endsWith('/')
     ? resolved
     : path.join(STATIC_DIR, 'index.html'); // SPA fallback
   try {
