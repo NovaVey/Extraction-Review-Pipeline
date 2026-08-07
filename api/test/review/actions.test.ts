@@ -73,6 +73,7 @@ const {
   SessionNotFoundError,
   NotNeedsReviewError,
   NothingToUndoError,
+  TableFieldUndoUnsupportedError,
   UnknownColumnKeyError,
 } = await import('../../src/review/actions.js');
 
@@ -348,6 +349,14 @@ describe('undoField', () => {
     const sessionUpdate = updatesTo(reviewSessions)[0].values;
     expect(sqlDelta(sessionUpdate.itemsReviewed)).toBe(-1);
     expect(sqlDelta(sessionUpdate.itemsCorrected)).toBe(-1);
+  });
+
+  it('refuses to undo a confirmed table field, since acceptField may have bulk-resolved its rows and undoField has no way to revert those too', async () => {
+    mocks.fieldValuesResult = [
+      { id: 'fv-1', fieldType: 'table', status: 'confirmed', normalizedValue: null, finalValue: null },
+    ];
+    await expect(undoField('fv-1', 'alice')).rejects.toThrow(TableFieldUndoUnsupportedError);
+    expect(updatesTo(fieldValues)).toHaveLength(0);
   });
 });
 

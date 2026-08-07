@@ -22,6 +22,15 @@ export class UnknownColumnKeyError extends Error {}
 // decision, not a reviewer's to undo).
 export class NothingToUndoError extends Error {}
 
+// undoField-specific: acceptField bulk-resolves a table field's own outstanding
+// rows (see acceptField below), but undoField only ever reverts the field-level
+// row — it has no way to also revert whichever rows got swept along with it.
+// Rather than silently under-deliver (revert the field, strand the rows), this
+// case is refused outright. The frontend already never offers Undo for a table
+// field's Accept for exactly this reason; this is the same rule enforced at the
+// one place that actually matters — a caller that reaches this route directly.
+export class TableFieldUndoUnsupportedError extends Error {}
+
 export interface ActionResult {
   id: string;
   status: string;
@@ -227,6 +236,11 @@ export async function undoField(fieldValueId: string, reviewer: string, reviewSe
   if (!field) throw new NotFoundError(`Field value not found: ${fieldValueId}`);
   if (field.status !== 'confirmed' && field.status !== 'corrected') {
     throw new NothingToUndoError(`Field value ${fieldValueId} was not resolved by a review action (status: ${field.status})`);
+  }
+  if (field.fieldType === 'table') {
+    throw new TableFieldUndoUnsupportedError(
+      `Field value ${fieldValueId} is a table field — undoing it would revert the field but strand any rows its Accept bulk-resolved`,
+    );
   }
   const wasCorrected = field.status === 'corrected';
 
