@@ -190,87 +190,94 @@ export async function extractDocument(documentId: string, options?: ExtractDocum
 
   // Pass 2: score confidence (sample agreement, softened/zeroed by validatorStatus and
   // cross-field checks resolved above), decide auto_accepted vs needs_review, and insert.
-  for (const result of passResults) {
-    const crossFieldChecks = crossFieldResults.perFieldChecks.get(result.field.key) ?? [];
-    const confidence = computeConfidence({
-      sampleAgreement: result.agreement,
-      validatorStatus: result.validatorStatus,
-      required: result.field.required,
-      crossFieldChecks,
-    });
-    const status = decideStatus(confidence, result.field.autoAcceptThreshold);
+  // Each field's write is independent of every other field's, so they run concurrently
+  // rather than one-at-a-time — the only real ordering constraint is within a single
+  // table field, whose row inserts need that field's own fieldValues.id first (those
+  // rows are independent of *each other*, so they're concurrent too, just gated behind
+  // their own field's insert).
+  await Promise.all(
+    passResults.map(async (result) => {
+      const crossFieldChecks = crossFieldResults.perFieldChecks.get(result.field.key) ?? [];
+      const confidence = computeConfidence({
+        sampleAgreement: result.agreement,
+        validatorStatus: result.validatorStatus,
+        required: result.field.required,
+        crossFieldChecks,
+      });
+      const status = decideStatus(confidence, result.field.autoAcceptThreshold);
 
-    if (result.kind === 'table') {
-      const [fvRow] = await db
-        .insert(fieldValues)
-        .values({
+      if (result.kind === 'table') {
+        const [fvRow] = await db
+          .insert(fieldValues)
+          .values({
+            extractionId: extractionRow.id,
+            documentId,
+            fieldKey: result.field.key,
+            fieldType: result.field.type,
+            rawValue: null,
+            normalizedValue: null,
+            confidence: confidence.toString(),
+            confidenceParts: { sampleAgreement: result.agreement, validatorStatus: result.validatorStatus, crossFieldChecks },
+            validatorStatus: result.validatorStatus,
+            status,
+          })
+          .returning({ id: fieldValues.id });
+
+        const columns = result.field.columns ?? [];
+        await Promise.all(
+          result.majorityRows.map(async (cells, rowIndex) => {
+            // Aggregate the row's own validity from its cells: any format-invalid cell
+            // taints the whole row (a row can't be "mostly right"); a missing optional
+            // cell doesn't, mirroring how a missing-but-not-required scalar field isn't
+            // penalized on its own.
+            let hasInvalid = false;
+            let hasMissingRequired = false;
+            for (const column of columns) {
+              const cellStatus = validateValue(column.type, column.enumValues, cells[column.key] as string | number | null | undefined);
+              if (cellStatus === 'invalid') hasInvalid = true;
+              else if (cellStatus === 'missing' && column.required) hasMissingRequired = true;
+            }
+            const rowValidatorStatus: ValidatorStatus = hasInvalid ? 'invalid' : hasMissingRequired ? 'missing' : 'valid';
+
+            const rowCrossFieldChecks = crossFieldResults.perRowChecks[rowIndex] ?? [];
+            const rowConfidence = computeConfidence({
+              sampleAgreement: result.agreement,
+              validatorStatus: rowValidatorStatus,
+              required: true,
+              crossFieldChecks: rowCrossFieldChecks,
+            });
+            const rowStatus = decideStatus(rowConfidence, result.field.autoAcceptThreshold);
+
+            await db.insert(fieldValueRows).values({
+              fieldValueId: fvRow.id,
+              rowIndex,
+              cells,
+              confidence: rowConfidence.toString(),
+              confidenceParts: {
+                sampleAgreement: result.agreement,
+                validatorStatus: rowValidatorStatus,
+                crossFieldChecks: rowCrossFieldChecks,
+              },
+              status: rowStatus,
+            });
+          }),
+        );
+      } else {
+        await db.insert(fieldValues).values({
           extractionId: extractionRow.id,
           documentId,
           fieldKey: result.field.key,
           fieldType: result.field.type,
-          rawValue: null,
-          normalizedValue: null,
+          rawValue: result.rawValue,
+          normalizedValue: result.normalizedValue,
           confidence: confidence.toString(),
           confidenceParts: { sampleAgreement: result.agreement, validatorStatus: result.validatorStatus, crossFieldChecks },
           validatorStatus: result.validatorStatus,
           status,
-        })
-        .returning({ id: fieldValues.id });
-
-      const columns = result.field.columns ?? [];
-      for (let rowIndex = 0; rowIndex < result.majorityRows.length; rowIndex++) {
-        const cells = result.majorityRows[rowIndex];
-
-        // Aggregate the row's own validity from its cells: any format-invalid cell
-        // taints the whole row (a row can't be "mostly right"); a missing optional
-        // cell doesn't, mirroring how a missing-but-not-required scalar field isn't
-        // penalized on its own.
-        let hasInvalid = false;
-        let hasMissingRequired = false;
-        for (const column of columns) {
-          const cellStatus = validateValue(column.type, undefined, cells[column.key] as string | number | null | undefined);
-          if (cellStatus === 'invalid') hasInvalid = true;
-          else if (cellStatus === 'missing' && column.required) hasMissingRequired = true;
-        }
-        const rowValidatorStatus: ValidatorStatus = hasInvalid ? 'invalid' : hasMissingRequired ? 'missing' : 'valid';
-
-        const rowCrossFieldChecks = crossFieldResults.perRowChecks[rowIndex] ?? [];
-        const rowConfidence = computeConfidence({
-          sampleAgreement: result.agreement,
-          validatorStatus: rowValidatorStatus,
-          required: true,
-          crossFieldChecks: rowCrossFieldChecks,
-        });
-        const rowStatus = decideStatus(rowConfidence, result.field.autoAcceptThreshold);
-
-        await db.insert(fieldValueRows).values({
-          fieldValueId: fvRow.id,
-          rowIndex,
-          cells,
-          confidence: rowConfidence.toString(),
-          confidenceParts: {
-            sampleAgreement: result.agreement,
-            validatorStatus: rowValidatorStatus,
-            crossFieldChecks: rowCrossFieldChecks,
-          },
-          status: rowStatus,
         });
       }
-    } else {
-      await db.insert(fieldValues).values({
-        extractionId: extractionRow.id,
-        documentId,
-        fieldKey: result.field.key,
-        fieldType: result.field.type,
-        rawValue: result.rawValue,
-        normalizedValue: result.normalizedValue,
-        confidence: confidence.toString(),
-        confidenceParts: { sampleAgreement: result.agreement, validatorStatus: result.validatorStatus, crossFieldChecks },
-        validatorStatus: result.validatorStatus,
-        status,
-      });
-    }
-  }
+    }),
+  );
 
   return { extractionId: extractionRow.id, fieldCount: fields.length };
 }

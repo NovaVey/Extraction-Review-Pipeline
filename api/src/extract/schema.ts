@@ -8,6 +8,7 @@ export interface ColumnSpec {
   label: string;
   type: FieldType;
   required: boolean;
+  enumValues?: string[];
 }
 
 export interface FieldSpec {
@@ -53,7 +54,7 @@ export function buildExtractionJsonSchema(fields: FieldSpec[]): Record<string, u
       const rowProperties: Record<string, unknown> = {};
       const rowRequired: string[] = [];
       for (const column of columns) {
-        rowProperties[column.key] = { ...scalarSchema(column.type, undefined, false), description: column.label };
+        rowProperties[column.key] = { ...scalarSchema(column.type, column.enumValues, false), description: column.label };
         rowRequired.push(column.key);
       }
       properties[field.key] = {
