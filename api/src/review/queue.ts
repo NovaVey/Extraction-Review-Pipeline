@@ -3,6 +3,7 @@ import { db } from '../db/client.js';
 import { documents, extractions, extractionSchemas, fieldValues, fieldValueRows, pages } from '../db/schema.js';
 import type { FieldSpec, FieldType } from '../extract/schema.js';
 import { DocumentNotFoundError } from '../documents/archive.js';
+import { NotFoundError } from './actions.js';
 import { RESOLVED_STATUSES } from './status.js';
 
 export interface ReviewItemRow {
@@ -261,6 +262,39 @@ export async function getReviewItemForDocument(documentId: string): Promise<Revi
   return buildReviewItem(chosen, latestExtraction, document);
 }
 
+// Powers the batch-documents dropdown's per-FIELD "jump to this exact field" action
+// (and the in-place Undo button's own post-undo refresh — see App.tsx) — unlike
+// getReviewItemForDocument, this is a direct, unambiguous lookup with no candidate
+// selection: given an exact field_value id, there's only ever one right answer.
+// Always resolves regardless of the field's current status, including already
+// resolved — reachable on purpose, so a reviewer can jump back and double-check (or
+// undo) any past decision, not just what's currently outstanding.
+export async function getReviewItemForField(fieldValueId: string): Promise<ReviewItem> {
+  const [chosen] = await db.select().from(fieldValues).where(eq(fieldValues.id, fieldValueId)).limit(1);
+  if (!chosen) {
+    throw new NotFoundError(`Field value not found: ${fieldValueId}`);
+  }
+
+  const [document] = await db.select().from(documents).where(eq(documents.id, chosen.documentId)).limit(1);
+  if (!document || document.archivedAt) {
+    throw new DocumentNotFoundError(`Document not found: ${chosen.documentId}`);
+  }
+
+  const latestExtraction = await getLatestExtraction(chosen.documentId, new Map());
+  // Filtered by extractionId, not documentId — same "never surface stale data" guard
+  // getReviewItemForDocument already applies via its own extractionId scoping, just
+  // expressed as a post-fetch check here since this lookup starts from a field_value
+  // id directly rather than a schema-order walk. A field_value id from a superseded
+  // extraction (e.g. a stale browser tab open since before a re-extract) must not be
+  // treated as current data — and if the document's latest extraction can't be
+  // resolved at all, this field can't be current either way.
+  if (!latestExtraction || chosen.extractionId !== latestExtraction.id) {
+    throw new NotFoundError(`Field value ${fieldValueId} does not belong to ${chosen.documentId}'s current extraction`);
+  }
+
+  return buildReviewItem(chosen, latestExtraction, document);
+}
+
 export interface ReviewQueueStats {
   totalItems: number;
   needsReview: number;
@@ -342,6 +376,30 @@ export async function getNeedsReviewDocumentIds(): Promise<Set<string>> {
   return needsReviewDocumentIds;
 }
 
+// Batched sibling of getLatestExtraction (single document, cached) — resolves the
+// latest extraction per document for a whole set of ids in one query. Shared by
+// getDocumentDisplayNames and getBatchFieldSummaries so they can never disagree
+// about which extraction is "current" for the same document at the same moment —
+// before this existed they were two independent, slightly different reductions of
+// an identical query. The id tiebreak matters for real: extractions.startedAt is
+// set in application code (extract/run.ts), not a DB default, so two extractions
+// for the same document CAN share a millisecond on a scripted bulk re-extract.
+async function getLatestExtractionsForDocuments(documentIds: string[]): Promise<Map<string, LatestExtractionRef>> {
+  if (documentIds.length === 0) return new Map();
+  const relevant = await db
+    .select({ documentId: extractions.documentId, id: extractions.id, schemaId: extractions.schemaId, startedAt: extractions.startedAt })
+    .from(extractions)
+    .where(inArray(extractions.documentId, documentIds));
+  const latest = new Map<string, { id: string; schemaId: string; startedAt: Date }>();
+  for (const e of relevant) {
+    const existing = latest.get(e.documentId);
+    if (!existing || e.startedAt > existing.startedAt || (e.startedAt.getTime() === existing.startedAt.getTime() && e.id > existing.id)) {
+      latest.set(e.documentId, e);
+    }
+  }
+  return new Map([...latest].map(([documentId, e]) => [documentId, { id: e.id, schemaId: e.schemaId }]));
+}
+
 // A per-document display name for the batch-documents sidebar — "invoice_clean_01.pdf"
 // tells a reviewer nothing; the invoice number or vendor name on it does. Only
 // `type === 'string'` schema fields are considered, in the schema's OWN declared
@@ -361,20 +419,8 @@ export async function getDocumentDisplayNames(documentIds: string[], schemaId: s
   const stringFieldKeys = schemaFields.filter((f) => f.type === 'string').map((f) => f.key);
   if (stringFieldKeys.length === 0) return new Map(documentIds.map((id) => [id, null]));
 
-  const relevantExtractions = await db
-    .select({ documentId: extractions.documentId, id: extractions.id, startedAt: extractions.startedAt })
-    .from(extractions)
-    .where(inArray(extractions.documentId, documentIds));
-  const latestExtractionIdByDocument = new Map<string, string>();
-  const startedAtByDocument = new Map<string, Date>();
-  for (const e of relevantExtractions) {
-    const existing = startedAtByDocument.get(e.documentId);
-    if (!existing || e.startedAt > existing) {
-      startedAtByDocument.set(e.documentId, e.startedAt);
-      latestExtractionIdByDocument.set(e.documentId, e.id);
-    }
-  }
-  const latestExtractionIds = [...new Set(latestExtractionIdByDocument.values())];
+  const latestExtractionByDocument = await getLatestExtractionsForDocuments(documentIds);
+  const latestExtractionIds = [...new Set([...latestExtractionByDocument.values()].map((e) => e.id))];
   if (latestExtractionIds.length === 0) return new Map(documentIds.map((id) => [id, null]));
 
   const relevantFieldValues = await db
@@ -410,4 +456,94 @@ export async function getDocumentDisplayNames(documentIds: string[], schemaId: s
     names.set(documentId, name);
   }
   return names;
+}
+
+export interface BatchFieldSummary {
+  fieldValueId: string;
+  fieldKey: string;
+  label: string;
+  needsReview: boolean;
+}
+
+// Powers the batch-documents dropdown's per-FIELD entries — every field on every
+// document, in the schema's own declared order, so a document with N reviewable
+// fields shows N dropdown rows, not one. Deliberately does NOT filter to
+// needs_review-only fields — the dropdown intentionally keeps every field listed
+// even once resolved, so a reviewer can jump back and double-check (or undo) any
+// decision at any time, not just what's currently outstanding. Kept separate from
+// getDocumentDisplayNames (not merged into one function) — different callers,
+// different shapes, sharing only the extraction-resolution step that actually
+// needed sharing (getLatestExtractionsForDocuments above).
+export async function getBatchFieldSummaries(documentIds: string[], schemaId: string): Promise<Map<string, BatchFieldSummary[]>> {
+  if (documentIds.length === 0) return new Map();
+
+  const [schemaRow] = await db.select({ fields: extractionSchemas.fields }).from(extractionSchemas).where(eq(extractionSchemas.id, schemaId)).limit(1);
+  const schemaFields = (schemaRow?.fields as FieldSpec[] | undefined) ?? [];
+  if (schemaFields.length === 0) return new Map(documentIds.map((id) => [id, []]));
+
+  const latestExtractionByDocument = await getLatestExtractionsForDocuments(documentIds);
+  const latestExtractionIds = [...new Set([...latestExtractionByDocument.values()].map((e) => e.id))];
+  if (latestExtractionIds.length === 0) return new Map(documentIds.map((id) => [id, []]));
+
+  // Every field type this time, not just string — the dropdown needs every field,
+  // not just naming candidates (getDocumentDisplayNames's own concern).
+  const relevantFieldValues = await db
+    .select({ id: fieldValues.id, documentId: fieldValues.documentId, fieldKey: fieldValues.fieldKey, status: fieldValues.status })
+    .from(fieldValues)
+    .where(inArray(fieldValues.extractionId, latestExtractionIds));
+
+  const relevantFieldValueIds = relevantFieldValues.map((f) => f.id);
+  const needsReviewRows =
+    relevantFieldValueIds.length > 0
+      ? await db
+          .select({ fieldValueId: fieldValueRows.fieldValueId })
+          .from(fieldValueRows)
+          .where(and(eq(fieldValueRows.status, 'needs_review'), inArray(fieldValueRows.fieldValueId, relevantFieldValueIds)))
+      : [];
+  const rowPendingFieldValueIds = new Set(needsReviewRows.map((r) => r.fieldValueId));
+
+  const byDocument = new Map<string, typeof relevantFieldValues>();
+  for (const fv of relevantFieldValues) {
+    const list = byDocument.get(fv.documentId) ?? [];
+    list.push(fv);
+    byDocument.set(fv.documentId, list);
+  }
+
+  const labelByKey = new Map(schemaFields.map((f) => [f.key, f.label]));
+  const result = new Map<string, BatchFieldSummary[]>();
+  for (const documentId of documentIds) {
+    const fieldsForDocument = byDocument.get(documentId) ?? [];
+    const byFieldKey = new Map(fieldsForDocument.map((fv) => [fv.fieldKey, fv]));
+    const summaries: BatchFieldSummary[] = [];
+    const seenFieldValueIds = new Set<string>();
+    for (const spec of schemaFields) {
+      const fv = byFieldKey.get(spec.key);
+      if (!fv) continue;
+      seenFieldValueIds.add(fv.id);
+      summaries.push({
+        fieldValueId: fv.id,
+        fieldKey: fv.fieldKey,
+        label: spec.label,
+        needsReview: fv.status === 'needs_review' || rowPendingFieldValueIds.has(fv.id),
+      });
+    }
+    // A field_value whose fieldKey doesn't match any CURRENT schema field (a
+    // hand-edited/legacy row — same case buildReviewItem already defends against
+    // via `fieldSpec?.label ?? chosen.fieldKey`) would otherwise be silently
+    // dropped from the dropdown entirely — reintroducing the exact "3 of 4"
+    // undercount this feature exists to fix, just relocated. Appended after the
+    // schema-ordered entries (no declared position to sort it by), labeled with
+    // its own fieldKey the same way buildReviewItem falls back.
+    for (const fv of fieldsForDocument) {
+      if (seenFieldValueIds.has(fv.id)) continue;
+      summaries.push({
+        fieldValueId: fv.id,
+        fieldKey: fv.fieldKey,
+        label: labelByKey.get(fv.fieldKey) ?? fv.fieldKey,
+        needsReview: fv.status === 'needs_review' || rowPendingFieldValueIds.has(fv.id),
+      });
+    }
+    result.set(documentId, summaries);
+  }
+  return result;
 }
