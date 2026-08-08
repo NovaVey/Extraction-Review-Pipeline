@@ -23,7 +23,16 @@ function getWorker(): Promise<Worker> {
   if (!workerPromise) {
     // langPath already points at a local, instant read — writing a decompressed
     // cache copy elsewhere (tesseract's default) would only add disk side effects.
-    workerPromise = createWorker('eng', undefined, { langPath: LANG_PATH, cacheMethod: 'none' });
+    workerPromise = createWorker('eng', undefined, { langPath: LANG_PATH, cacheMethod: 'none' }).catch((err) => {
+      // A rejected promise assigned above would otherwise stay cached forever —
+      // every subsequent getWorker() call just re-awaits the same already-rejected
+      // promise and fails immediately, with no way to recover short of restarting
+      // the process. Clearing the cache on failure means the NEXT call retries
+      // worker creation from scratch instead of being permanently wedged by one
+      // transient failure (e.g. a filesystem hiccup reading the pinned lang data).
+      workerPromise = null;
+      throw err;
+    });
   }
   return workerPromise;
 }
