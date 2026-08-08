@@ -52,7 +52,7 @@ vi.mock('../../src/db/client.js', () => ({
   },
 }));
 
-const { getNextReviewItem, getReviewQueueStats } = await import('../../src/review/queue.js');
+const { getNextReviewItem, getReviewQueueStats, getNeedsReviewDocumentIds } = await import('../../src/review/queue.js');
 
 beforeEach(() => {
   mocks.fieldValueRowsCalls = [];
@@ -86,7 +86,7 @@ describe('getNextReviewItem', () => {
     mocks.extractionsCalls = [[{ id: 'ext-1', schemaId: 'schema-1' }]];
     // Two documents-table calls now: the archived-document exclusion lookup (empty —
     // nothing archived), then the chosen candidate's own document lookup.
-    mocks.documentsCalls = [[], [{ id: 'doc-1', filename: 'invoice.pdf' }]];
+    mocks.documentsCalls = [[], [{ id: 'doc-1', filename: 'invoice.pdf', batchId: 'batch-1' }]];
     mocks.schemasCalls = [
       [
         {
@@ -105,6 +105,7 @@ describe('getNextReviewItem', () => {
       fieldValueId: 'fv-1',
       documentId: 'doc-1',
       documentFilename: 'invoice.pdf',
+      batchId: 'batch-1',
       fieldKey: 'invoice_number',
       fieldType: 'string',
       label: 'Invoice Number',
@@ -405,6 +406,55 @@ describe('getReviewQueueStats', () => {
     const stats = await getReviewQueueStats();
 
     expect(stats).toEqual({ totalItems: 0, needsReview: 0, autoAccepted: 0, confirmed: 0, corrected: 0 });
+    expect(mocks.fieldValueRowsCalls).toHaveLength(0);
+    expect(mocks.fieldValuesCalls).toHaveLength(0);
+  });
+});
+
+describe('getNeedsReviewDocumentIds', () => {
+  it('returns an empty set when there are no extractions at all', async () => {
+    mocks.extractionsCalls = [[]];
+
+    const ids = await getNeedsReviewDocumentIds();
+
+    expect(ids).toEqual(new Set());
+    expect(mocks.fieldValueRowsCalls).toHaveLength(0);
+    expect(mocks.fieldValuesCalls).toHaveLength(0);
+  });
+
+  it('collects documentIds with a needs_review field or a still-pending row, ignoring resolved documents and superseded extractions', async () => {
+    mocks.extractionsCalls = [
+      [
+        { documentId: 'doc-1', id: 'ext-1-old', startedAt: new Date('2026-01-01T00:00:00Z') },
+        { documentId: 'doc-1', id: 'ext-1-new', startedAt: new Date('2026-01-02T00:00:00Z') },
+        { documentId: 'doc-2', id: 'ext-2', startedAt: new Date('2026-01-01T00:00:00Z') },
+        { documentId: 'doc-3', id: 'ext-3', startedAt: new Date('2026-01-01T00:00:00Z') },
+      ],
+    ];
+    mocks.fieldValueRowsCalls = [[{ fieldValueId: 'fv-table' }]];
+    // Only what the real inArray(extractionId, [current ids]) filter would actually
+    // return — a field_value belonging to the superseded ext-1-old is never in this
+    // list, the same way the real query would never fetch it.
+    mocks.fieldValuesCalls = [
+      [
+        { id: 'fv-needs', documentId: 'doc-1', status: 'needs_review' },
+        { id: 'fv-auto', documentId: 'doc-2', status: 'auto_accepted' },
+        { id: 'fv-table', documentId: 'doc-3', status: 'auto_accepted' }, // field-level resolved, but still has a pending row
+      ],
+    ];
+
+    const ids = await getNeedsReviewDocumentIds();
+
+    expect(ids).toEqual(new Set(['doc-1', 'doc-3']));
+  });
+
+  it('excludes an archived document\'s extraction entirely, even though it would otherwise be its only one', async () => {
+    mocks.documentsCalls = [[{ id: 'doc-archived' }]];
+    mocks.extractionsCalls = [[{ documentId: 'doc-archived', id: 'ext-archived', startedAt: new Date('2026-01-01T00:00:00Z') }]];
+
+    const ids = await getNeedsReviewDocumentIds();
+
+    expect(ids).toEqual(new Set());
     expect(mocks.fieldValueRowsCalls).toHaveLength(0);
     expect(mocks.fieldValuesCalls).toHaveLength(0);
   });

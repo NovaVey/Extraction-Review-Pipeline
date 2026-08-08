@@ -46,6 +46,7 @@ export interface ReviewItem {
   fieldValueId: string;
   documentId: string;
   documentFilename: string;
+  batchId: string | null;
   fieldKey: string;
   fieldType: FieldType;
   label: string;
@@ -79,6 +80,23 @@ export interface ReviewSession {
   reviewer: string;
   batchId: string | null;
   startedAt: string;
+}
+
+// Mirrors api/src/routes/batches.ts's GET /batches/:id response — a trimmed,
+// needsReview-badged view of a batch's active (non-archived) documents, not the raw
+// documents table row.
+export interface BatchDocumentSummary {
+  id: string;
+  filename: string;
+  status: string;
+  needsReview: boolean;
+}
+
+export interface BatchWithDocuments {
+  id: string;
+  name: string;
+  status: string;
+  documents: BatchDocumentSummary[];
 }
 
 // What action handlers resolve to once a mutation attempt is fully settled —
