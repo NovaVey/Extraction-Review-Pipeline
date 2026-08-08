@@ -65,7 +65,15 @@ export const documents = pgTable(
     archivedAt: timestamp('archived_at', { withTimezone: true }),
     archivedBy: text('archived_by'),
   },
-  (table) => [uniqueIndex('documents_batch_id_sha256_key').on(table.batchId, table.sha256)],
+  (table) => [
+    uniqueIndex('documents_batch_id_sha256_key').on(table.batchId, table.sha256),
+    // review/queue.ts's getNextReviewItem and getReviewQueueStats both build an
+    // archived-document exclusion set with `isNotNull(documents.archivedAt)` on
+    // every GET /review/next and GET /review/stats call (i.e. after every
+    // accept/correct/undo in the reviewer UI) — an unindexed scan on the hottest
+    // read path this table has.
+    index('documents_archived_at_idx').on(table.archivedAt),
+  ],
 );
 
 export const pages = pgTable(
@@ -85,26 +93,37 @@ export const pages = pgTable(
   (table) => [uniqueIndex('pages_document_id_page_number_key').on(table.documentId, table.pageNumber)],
 );
 
-export const extractions = pgTable('extractions', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  documentId: uuid('document_id')
-    .notNull()
-    .references(() => documents.id),
-  schemaId: uuid('schema_id')
-    .notNull()
-    .references(() => extractionSchemas.id),
-  model: text('model').notNull(),
-  temperature: numeric('temperature').notNull(),
-  outputMode: text('output_mode').notNull(),
-  promptVersion: text('prompt_version').notNull(),
-  sampleCount: integer('sample_count').notNull(),
-  rawResponses: jsonb('raw_responses').notNull(),
-  inputTokens: integer('input_tokens'),
-  outputTokens: integer('output_tokens'),
-  startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
-  finishedAt: timestamp('finished_at', { withTimezone: true }),
-  status: text('status').notNull(),
-});
+export const extractions = pgTable(
+  'extractions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => documents.id),
+    schemaId: uuid('schema_id')
+      .notNull()
+      .references(() => extractionSchemas.id),
+    model: text('model').notNull(),
+    temperature: numeric('temperature').notNull(),
+    outputMode: text('output_mode').notNull(),
+    promptVersion: text('prompt_version').notNull(),
+    sampleCount: integer('sample_count').notNull(),
+    rawResponses: jsonb('raw_responses').notNull(),
+    inputTokens: integer('input_tokens'),
+    outputTokens: integer('output_tokens'),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    status: text('status').notNull(),
+  },
+  (table) => [
+    // Every "what's the current extraction for this document" lookup filters on
+    // document_id alone (review/queue.ts's getLatestExtraction — called once per
+    // review-queue candidate on every GET /review/next — plus export/build.ts and
+    // eval/run.ts, once per document on every export/eval run). Unindexed, each of
+    // those is a full-table scan.
+    index('extractions_document_id_idx').on(table.documentId),
+  ],
+);
 
 export const fieldValues = pgTable(
   'field_values',
@@ -154,7 +173,15 @@ export const fieldValueRows = pgTable(
     status: text('status').notNull(),
     finalCells: jsonb('final_cells'),
   },
-  (table) => [uniqueIndex('field_value_rows_field_value_id_row_index_key').on(table.fieldValueId, table.rowIndex)],
+  (table) => [
+    uniqueIndex('field_value_rows_field_value_id_row_index_key').on(table.fieldValueId, table.rowIndex),
+    // review/queue.ts filters on this column with `eq(fieldValueRows.status, 'needs_review')`
+    // in both getNextReviewItem and getReviewQueueStats — the two endpoints hit on
+    // every reviewer action. field_values.status (same role, one level up) already
+    // has a supporting index (field_values_status_confidence_idx below); this column
+    // didn't, despite being on the identical hot path.
+    index('field_value_rows_status_idx').on(table.status),
+  ],
 );
 
 export const corrections = pgTable(
