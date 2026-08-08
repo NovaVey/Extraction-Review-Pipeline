@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { pages } from '../src/db/schema.js';
+import type { ReviewItem } from '../src/review/queue.js';
 
 process.env.DATABASE_URL ||= 'postgresql://user:pass@localhost:5432/test';
 process.env.SUPABASE_URL ||= 'http://localhost';
@@ -43,10 +44,20 @@ vi.mock('../src/lib/storage.js', () => ({
   downloadObject: mocks.downloadObject,
 }));
 
-vi.mock('../src/review/queue.js', () => ({
-  getNextReviewItem: vi.fn(),
-  getReviewQueueStats: vi.fn(),
-}));
+// Preserves real exports (notably NoReviewableFieldError — routes/review.ts does a
+// live `err instanceof NoReviewableFieldError` check, which would throw a TypeError
+// against a plain `{...}` mock replacement that dropped the class entirely) while
+// replacing only the DB-touching functions — same importOriginal pattern already
+// used for review/actions.js just below.
+vi.mock('../src/review/queue.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/review/queue.js')>();
+  return {
+    ...actual,
+    getNextReviewItem: vi.fn(),
+    getReviewItemForDocument: vi.fn(),
+    getReviewQueueStats: vi.fn(),
+  };
+});
 
 vi.mock('../src/review/actions.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/review/actions.js')>();
@@ -64,7 +75,8 @@ vi.mock('../src/review/actions.js', async (importOriginal) => {
 });
 
 const { buildApp } = await import('../src/app.js');
-const { getNextReviewItem, getReviewQueueStats } = await import('../src/review/queue.js');
+const { getNextReviewItem, getReviewItemForDocument, getReviewQueueStats, NoReviewableFieldError } = await import('../src/review/queue.js');
+const { DocumentNotFoundError } = await import('../src/documents/archive.js');
 const {
   acceptField,
   correctField,
@@ -84,6 +96,7 @@ beforeEach(() => {
   mocks.mockPage = null;
   mocks.downloadObject.mockClear();
   vi.mocked(getNextReviewItem).mockReset();
+  vi.mocked(getReviewItemForDocument).mockReset();
   vi.mocked(getReviewQueueStats).mockReset();
   vi.mocked(acceptField).mockReset();
   vi.mocked(correctField).mockReset();
@@ -134,6 +147,81 @@ describe('GET /review/next', () => {
 
     expect(res.statusCode).toBe(400);
     expect(res.json().error).toBe('invalid_query');
+  });
+});
+
+describe('GET /review/documents/:id', () => {
+  const sampleItem: ReviewItem = {
+    fieldValueId: '55555555-5555-5555-5555-555555555555',
+    documentId: '22222222-2222-2222-2222-222222222222',
+    documentFilename: 'invoice.pdf',
+    batchId: null,
+    fieldKey: 'vendor_name',
+    fieldType: 'string',
+    label: 'Vendor Name',
+    description: 'd',
+    rawValue: 'Acme',
+    normalizedValue: 'Acme',
+    finalValue: null,
+    confidence: '0.5',
+    confidenceParts: {},
+    validatorStatus: 'valid',
+    status: 'needs_review',
+    rows: null,
+    pages: [],
+  };
+
+  it('returns 200 with the item', async () => {
+    vi.mocked(getReviewItemForDocument).mockResolvedValue(sampleItem);
+    const app = buildApp();
+
+    const res = await app.inject({ method: 'GET', url: '/review/documents/22222222-2222-2222-2222-222222222222' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ item: sampleItem });
+  });
+
+  it('passes the :id param through to getReviewItemForDocument', async () => {
+    vi.mocked(getReviewItemForDocument).mockResolvedValue(sampleItem);
+    const app = buildApp();
+
+    await app.inject({ method: 'GET', url: '/review/documents/22222222-2222-2222-2222-222222222222' });
+
+    expect(getReviewItemForDocument).toHaveBeenCalledWith('22222222-2222-2222-2222-222222222222');
+  });
+
+  it('returns 404 document_not_found when the document is missing or archived', async () => {
+    vi.mocked(getReviewItemForDocument).mockRejectedValue(new DocumentNotFoundError('not found'));
+    const app = buildApp();
+
+    const res = await app.inject({ method: 'GET', url: '/review/documents/22222222-2222-2222-2222-222222222222' });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual({ error: 'document_not_found' });
+  });
+
+  it('returns 404 no_review_item_found when the document has nothing to review', async () => {
+    vi.mocked(getReviewItemForDocument).mockRejectedValue(new NoReviewableFieldError('nothing to review'));
+    const app = buildApp();
+
+    const res = await app.inject({ method: 'GET', url: '/review/documents/22222222-2222-2222-2222-222222222222' });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual({ error: 'no_review_item_found' });
+  });
+
+  // The global registerUuidParamGuard preHandler hook (lib/uuidParamGuard.ts) runs
+  // before this handler and 404s any malformed :id with its own 'not_found' code —
+  // distinct from this route's 'document_not_found', and this route's handler (and
+  // therefore getReviewItemForDocument) must never even run for it.
+  it('rejects a malformed id with the global uuid guards 404 not_found code, without ever calling getReviewItemForDocument', async () => {
+    const app = buildApp();
+
+    const res = await app.inject({ method: 'GET', url: '/review/documents/not-a-uuid' });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual({ error: 'not_found' });
+    expect(getReviewItemForDocument).not.toHaveBeenCalled();
   });
 });
 

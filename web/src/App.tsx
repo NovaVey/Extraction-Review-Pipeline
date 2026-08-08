@@ -10,6 +10,7 @@ import {
   endReviewSessionBeacon,
   fetchBatch,
   fetchNextReviewItem,
+  fetchReviewItemForDocument,
   fetchReviewQueueStats,
   startReviewSession,
   undoField,
@@ -142,7 +143,16 @@ function App() {
     return () => window.removeEventListener('pagehide', handlePageHide);
   }, [reviewSessionId]);
 
-  const refetchQueue = useCallback(() => {
+  // Shared by refetchQueue and handleSelectDocument below — both end up wanting the
+  // identical "bump the sequence guard, show loading/transitioning, apply the result
+  // (or a caller-specific error) once it's still the latest in-flight fetch, reset
+  // the just-resolved/globally-accepted trackers" behavior, just sourced from a
+  // different endpoint. Deliberately kept dependency-free (only refs + functional
+  // setState updaters) so both callers below keep stable useCallback identities.
+  // Uses the SAME queueFetchSeqRef for both callers, not a separate ref per caller —
+  // that's what guarantees only the most recently *started* fetch of either kind
+  // ever wins, the same way actionSeqRef already unifies multiple action call sites.
+  const applyFetchedItem = useCallback((fetchItem: () => Promise<{ item: ReviewItem | null }>, errorMessage: (err: unknown) => string) => {
     const mySeq = ++queueFetchSeqRef.current;
     // Only blank the screen for a true first load (or after an error) — once
     // something is already showing, keep it on screen (marked "transitioning")
@@ -154,11 +164,11 @@ function App() {
       }
       return { status: 'loading' };
     });
-    fetchNextReviewItem()
+    fetchItem()
       .then(({ item }) => {
-        // A newer refetchQueue() call has already started (and possibly already
-        // resolved) since this one did — its result is the current truth, so this
-        // now-stale response must not overwrite it.
+        // A newer fetch has already started (and possibly already resolved) since
+        // this one did — its result is the current truth, so this now-stale
+        // response must not overwrite it.
         if (queueFetchSeqRef.current !== mySeq) return;
         setQueueState({ status: 'loaded', item });
         setIsTransitioning(false);
@@ -173,16 +183,46 @@ function App() {
         // busy flag) despite genuinely needing review again.
         setGloballyAcceptedId(null);
       })
-      .catch(() => {
+      .catch((err) => {
         if (queueFetchSeqRef.current !== mySeq) return;
-        setQueueState({ status: 'error', message: 'Could not reach the review queue.' });
+        setQueueState({ status: 'error', message: errorMessage(err) });
         setIsTransitioning(false);
       });
   }, []);
 
+  const refetchQueue = useCallback(() => {
+    applyFetchedItem(fetchNextReviewItem, () => 'Could not reach the review queue.');
+  }, [applyFetchedItem]);
+
   useEffect(() => {
     if (reviewSessionId) refetchQueue();
   }, [reviewSessionId, refetchQueue]);
+
+  // Jumps straight to a specific document (the batch-documents sidebar's "select"
+  // action) rather than waiting for the priority queue to reach it — see
+  // getReviewItemForDocument on the API side for what "straight to it" actually
+  // resolves to (its own next-needs-review field, or its first field if it's fully
+  // resolved). A 404 here is a real, distinguishable outcome (the document was
+  // removed/archived since the sidebar list was fetched, or somehow has nothing to
+  // show) — NOT the generic "could not reach the review queue" failure, which would
+  // be actively misleading for what's actually a one-document lookup failure.
+  const handleSelectDocument = useCallback(
+    (documentId: string) => {
+      if (refetchTimeoutRef.current !== null) {
+        clearTimeout(refetchTimeoutRef.current);
+        refetchTimeoutRef.current = null;
+      }
+      applyFetchedItem(
+        () => fetchReviewItemForDocument(documentId),
+        (err) => {
+          if (err instanceof ApiError && err.code === 'document_not_found') return 'That document is no longer available.';
+          if (err instanceof ApiError && err.code === 'no_review_item_found') return 'That document has no reviewable fields yet.';
+          return "Could not open that document — try again.";
+        },
+      );
+    },
+    [applyFetchedItem],
+  );
 
   // Supplementary to the review flow itself — a failed stats fetch shouldn't block
   // or interrupt reviewing, so it's swallowed rather than surfaced as an ErrorState.
@@ -538,6 +578,7 @@ function App() {
           stats={stats}
           batchDocuments={batchDocuments}
           currentDocumentId={queueState.status === 'loaded' ? (queueState.item?.documentId ?? null) : null}
+          onSelectDocument={handleSelectDocument}
         />
         <main className="min-h-0 flex-1 overflow-y-auto p-4">
           {sessionError && !reviewSessionId ? (

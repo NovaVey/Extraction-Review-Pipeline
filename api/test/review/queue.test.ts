@@ -52,7 +52,9 @@ vi.mock('../../src/db/client.js', () => ({
   },
 }));
 
-const { getNextReviewItem, getReviewQueueStats, getNeedsReviewDocumentIds } = await import('../../src/review/queue.js');
+const { getNextReviewItem, getReviewItemForDocument, getReviewQueueStats, getNeedsReviewDocumentIds, getDocumentDisplayNames, NoReviewableFieldError } =
+  await import('../../src/review/queue.js');
+const { DocumentNotFoundError } = await import('../../src/documents/archive.js');
 
 beforeEach(() => {
   mocks.fieldValueRowsCalls = [];
@@ -457,5 +459,402 @@ describe('getNeedsReviewDocumentIds', () => {
     expect(ids).toEqual(new Set());
     expect(mocks.fieldValueRowsCalls).toHaveLength(0);
     expect(mocks.fieldValuesCalls).toHaveLength(0);
+  });
+});
+
+describe('getReviewItemForDocument', () => {
+  it('returns the (only) needs_review field, ignoring an already-resolved sibling', async () => {
+    mocks.documentsCalls = [[{ id: 'doc-1', filename: 'invoice.pdf', batchId: 'batch-1', archivedAt: null }]];
+    mocks.extractionsCalls = [[{ id: 'ext-1', schemaId: 'schema-1' }]];
+    mocks.fieldValuesCalls = [
+      [
+        {
+          id: 'fv-resolved',
+          documentId: 'doc-1',
+          extractionId: 'ext-1',
+          fieldKey: 'vendor_name',
+          fieldType: 'string',
+          rawValue: 'Acme',
+          normalizedValue: 'Acme',
+          finalValue: 'Acme',
+          confidence: '0.99',
+          confidenceParts: {},
+          validatorStatus: 'valid',
+          status: 'confirmed',
+        },
+        {
+          id: 'fv-pending',
+          documentId: 'doc-1',
+          extractionId: 'ext-1',
+          fieldKey: 'invoice_number',
+          fieldType: 'string',
+          rawValue: 'INV-1',
+          normalizedValue: 'INV-1',
+          finalValue: null,
+          confidence: '0.4',
+          confidenceParts: {},
+          validatorStatus: 'valid',
+          status: 'needs_review',
+        },
+      ],
+    ];
+    mocks.fieldValueRowsCalls = [[]]; // no pending rows anywhere
+    mocks.schemasCalls = [
+      [
+        {
+          id: 'schema-1',
+          fields: [
+            { key: 'invoice_number', label: 'Invoice Number', description: 'The invoice number', type: 'string', required: true, autoAcceptThreshold: 0.9 },
+            { key: 'vendor_name', label: 'Vendor Name', description: 'd', type: 'string', required: true, autoAcceptThreshold: 0.9 },
+          ],
+        },
+      ],
+    ];
+    mocks.pagesCalls = [[{ id: 'page-1', pageNumber: 1, width: 100, height: 200 }]];
+
+    const item = await getReviewItemForDocument('doc-1');
+
+    expect(item).toEqual({
+      fieldValueId: 'fv-pending',
+      documentId: 'doc-1',
+      documentFilename: 'invoice.pdf',
+      batchId: 'batch-1',
+      fieldKey: 'invoice_number',
+      fieldType: 'string',
+      label: 'Invoice Number',
+      description: 'The invoice number',
+      rawValue: 'INV-1',
+      normalizedValue: 'INV-1',
+      finalValue: null,
+      confidence: '0.4',
+      confidenceParts: {},
+      validatorStatus: 'valid',
+      status: 'needs_review',
+      rows: null,
+      pages: [{ id: 'page-1', pageNumber: 1, width: 100, height: 200 }],
+    });
+  });
+
+  it('picks the lower-confidence field when two candidates are simultaneously needs_review (confidence tie-break)', async () => {
+    mocks.documentsCalls = [[{ id: 'doc-1', filename: 'invoice.pdf', batchId: null, archivedAt: null }]];
+    mocks.extractionsCalls = [[{ id: 'ext-1', schemaId: 'schema-1' }]];
+    mocks.fieldValuesCalls = [
+      [
+        {
+          id: 'fv-higher-confidence',
+          documentId: 'doc-1',
+          extractionId: 'ext-1',
+          fieldKey: 'due_date',
+          fieldType: 'date',
+          rawValue: '2025-10-20',
+          normalizedValue: '2025-10-20',
+          finalValue: null,
+          confidence: '0.78',
+          confidenceParts: {},
+          validatorStatus: 'valid',
+          status: 'needs_review',
+        },
+        {
+          id: 'fv-lower-confidence',
+          documentId: 'doc-1',
+          extractionId: 'ext-1',
+          fieldKey: 'vendor_name',
+          fieldType: 'string',
+          rawValue: 'Harrow & Fnch Materials',
+          normalizedValue: 'Harrow & Fnch Materials',
+          finalValue: null,
+          confidence: '0.62',
+          confidenceParts: {},
+          validatorStatus: 'valid',
+          status: 'needs_review',
+        },
+      ],
+    ];
+    mocks.fieldValueRowsCalls = [[]];
+    mocks.schemasCalls = [
+      [{ id: 'schema-1', fields: [{ key: 'vendor_name', label: 'Vendor Name', description: 'd', type: 'string', required: true, autoAcceptThreshold: 0.9 }] }],
+    ];
+    mocks.pagesCalls = [[]];
+
+    const item = await getReviewItemForDocument('doc-1');
+
+    expect(item.fieldValueId).toBe('fv-lower-confidence'); // 0.62 < 0.78, same asc(confidence) rule as getNextReviewItem
+  });
+
+  it('surfaces a table field whose own status is resolved but which has one still-pending row', async () => {
+    mocks.documentsCalls = [[{ id: 'doc-2', filename: 'po.pdf', batchId: null, archivedAt: null }]];
+    mocks.extractionsCalls = [[{ id: 'ext-2', schemaId: 'schema-2' }]];
+    mocks.fieldValuesCalls = [
+      [
+        {
+          id: 'fv-table',
+          documentId: 'doc-2',
+          extractionId: 'ext-2',
+          fieldKey: 'line_items',
+          fieldType: 'table',
+          rawValue: null,
+          normalizedValue: null,
+          finalValue: null,
+          confidence: '0.95',
+          confidenceParts: {},
+          validatorStatus: 'valid',
+          status: 'auto_accepted',
+        },
+      ],
+    ];
+    // needsReviewRows: fv-table has one pending row -> it qualifies as a candidate
+    // even though its own field-level status is already resolved.
+    mocks.fieldValueRowsCalls = [[{ fieldValueId: 'fv-table' }]];
+    mocks.schemasCalls = [
+      [
+        {
+          id: 'schema-2',
+          fields: [
+            {
+              key: 'line_items',
+              label: 'Line Items',
+              description: 'd',
+              type: 'table',
+              required: true,
+              autoAcceptThreshold: 0.9,
+              columns: [{ key: 'description', label: 'Description', type: 'string', required: true }],
+            },
+          ],
+        },
+      ],
+    ];
+    mocks.pagesCalls = [[]];
+    // The chosen table field's own full row set, fetched inside buildReviewItem.
+    mocks.fieldValueRowsCalls.push([
+      { id: 'row-1', rowIndex: 0, cells: { description: 'Widget' }, finalCells: null, confidence: '0.4', confidenceParts: {}, status: 'needs_review' },
+    ]);
+
+    const item = await getReviewItemForDocument('doc-2');
+
+    expect(item.fieldValueId).toBe('fv-table');
+    expect(item.status).toBe('auto_accepted'); // the field's own status is untouched
+    expect(item.rows).toHaveLength(1);
+    expect(item.rows?.[0].status).toBe('needs_review');
+  });
+
+  it('falls back to the first schema-declared field when the document is fully resolved, including surfacing an already-resolved TABLE field', async () => {
+    mocks.documentsCalls = [[{ id: 'doc-2', filename: 'po.pdf', batchId: null, archivedAt: null }]];
+    mocks.extractionsCalls = [[{ id: 'ext-2', schemaId: 'schema-2' }]];
+    mocks.fieldValuesCalls = [
+      [
+        {
+          id: 'fv-table',
+          documentId: 'doc-2',
+          extractionId: 'ext-2',
+          fieldKey: 'line_items',
+          fieldType: 'table',
+          rawValue: null,
+          normalizedValue: null,
+          finalValue: null,
+          confidence: '0.95',
+          confidenceParts: {},
+          validatorStatus: 'valid',
+          status: 'auto_accepted',
+        },
+        {
+          id: 'fv-total',
+          documentId: 'doc-2',
+          extractionId: 'ext-2',
+          fieldKey: 'total',
+          fieldType: 'money',
+          rawValue: '9.00',
+          normalizedValue: '9.00',
+          finalValue: '9.00',
+          confidence: '0.99',
+          confidenceParts: {},
+          validatorStatus: 'valid',
+          status: 'confirmed',
+        },
+      ],
+    ];
+    mocks.fieldValueRowsCalls = [[]]; // needsReviewRows: nothing pending anywhere -> fully-resolved fallback branch
+    const schemaFixture = {
+      id: 'schema-2',
+      fields: [
+        {
+          key: 'line_items',
+          label: 'Line Items',
+          description: 'd',
+          type: 'table',
+          required: true,
+          autoAcceptThreshold: 0.9,
+          columns: [{ key: 'description', label: 'Description', type: 'string', required: true }],
+        },
+        { key: 'total', label: 'Total', description: 'd', type: 'money', required: true, autoAcceptThreshold: 0.9 },
+      ],
+    };
+    // Queried twice: once by the fallback branch itself (to walk schema field order),
+    // once more inside buildReviewItem (for label/description resolution) -- a real
+    // but harmless duplicate query, see queue.ts's own comment on this fallback path.
+    mocks.schemasCalls = [[schemaFixture], [schemaFixture]];
+    mocks.pagesCalls = [[]];
+    mocks.fieldValueRowsCalls.push([
+      { id: 'row-1', rowIndex: 0, cells: { description: 'Widget' }, finalCells: { description: 'Widget' }, confidence: '1', confidenceParts: {}, status: 'confirmed' },
+    ]);
+
+    const item = await getReviewItemForDocument('doc-2');
+
+    // line_items is declared before total, and it's the first with a matching
+    // field_value -- so it wins the fallback even though total also qualifies.
+    expect(item.fieldValueId).toBe('fv-table');
+    expect(item.fieldType).toBe('table');
+    expect(item.status).toBe('auto_accepted');
+    expect(item.rows).toHaveLength(1);
+  });
+
+  // A re-extract can leave the CURRENT extraction with zero field_values (e.g. every
+  // sample failed to parse -- see extract/run.ts) while an OLDER, superseded
+  // extraction still has a lingering needs_review row nothing ever resolved. This
+  // must throw, not silently fall through to that older extraction's stale data --
+  // the query is scoped by extractionId specifically to prevent that. (This mock
+  // harness can't evaluate the real SQL WHERE clause -- same acknowledged limitation
+  // as getNextReviewItem's own archived-document test above -- so what this proves is
+  // that an extractionId-scoped query returning nothing is treated as "nothing to
+  // review", not silently papered over by falling back to some other data source.)
+  it('throws NoReviewableFieldError when the current extraction has zero field values', async () => {
+    mocks.documentsCalls = [[{ id: 'doc-1', filename: 'invoice.pdf', batchId: null, archivedAt: null }]];
+    mocks.extractionsCalls = [[{ id: 'ext-new', schemaId: 'schema-1' }]];
+    mocks.fieldValuesCalls = [[]];
+
+    await expect(getReviewItemForDocument('doc-1')).rejects.toThrow(NoReviewableFieldError);
+    expect(mocks.fieldValueRowsCalls).toHaveLength(0);
+    expect(mocks.schemasCalls).toHaveLength(0);
+  });
+
+  it('throws NoReviewableFieldError when the document has never been extracted', async () => {
+    mocks.documentsCalls = [[{ id: 'doc-1', filename: 'invoice.pdf', batchId: null, archivedAt: null }]];
+    mocks.extractionsCalls = [[]]; // getLatestExtraction finds nothing
+
+    await expect(getReviewItemForDocument('doc-1')).rejects.toThrow(NoReviewableFieldError);
+    expect(mocks.fieldValuesCalls).toHaveLength(0);
+  });
+
+  it('throws DocumentNotFoundError when the document does not exist', async () => {
+    mocks.documentsCalls = [[]];
+
+    await expect(getReviewItemForDocument('doc-missing')).rejects.toThrow(DocumentNotFoundError);
+    expect(mocks.extractionsCalls).toHaveLength(0);
+  });
+
+  it('throws DocumentNotFoundError (never NoReviewableFieldError) for an archived document, even though it still has field values', async () => {
+    mocks.documentsCalls = [[{ id: 'doc-1', filename: 'invoice.pdf', batchId: null, archivedAt: new Date('2026-01-01T00:00:00Z') }]];
+
+    await expect(getReviewItemForDocument('doc-1')).rejects.toThrow(DocumentNotFoundError);
+    expect(mocks.extractionsCalls).toHaveLength(0);
+  });
+});
+
+describe('getDocumentDisplayNames', () => {
+  it('returns an empty map for an empty document list, issuing no queries at all', async () => {
+    const names = await getDocumentDisplayNames([], 'schema-1');
+
+    expect(names).toEqual(new Map());
+    expect(mocks.schemasCalls).toHaveLength(0);
+    expect(mocks.extractionsCalls).toHaveLength(0);
+    expect(mocks.fieldValuesCalls).toHaveLength(0);
+  });
+
+  it('uses the first declared string field that has a value', async () => {
+    mocks.schemasCalls = [
+      [
+        {
+          fields: [
+            { key: 'invoice_number', label: 'Invoice Number', description: 'd', type: 'string', required: true, autoAcceptThreshold: 0.9 },
+            { key: 'vendor_name', label: 'Vendor Name', description: 'd', type: 'string', required: true, autoAcceptThreshold: 0.9 },
+          ],
+        },
+      ],
+    ];
+    mocks.extractionsCalls = [[{ documentId: 'doc-1', id: 'ext-1', startedAt: new Date('2026-01-01T00:00:00Z') }]];
+    mocks.fieldValuesCalls = [
+      [
+        { documentId: 'doc-1', fieldKey: 'invoice_number', status: 'needs_review', normalizedValue: 'INV-77', finalValue: null },
+        { documentId: 'doc-1', fieldKey: 'vendor_name', status: 'needs_review', normalizedValue: 'Acme', finalValue: null },
+      ],
+    ];
+
+    const names = await getDocumentDisplayNames(['doc-1'], 'schema-1');
+
+    expect(names.get('doc-1')).toBe('INV-77');
+  });
+
+  it('falls through to the second declared string field when the document has no value for the first (the real doc-1 shape: no invoice_number field at all, only vendor_name)', async () => {
+    mocks.schemasCalls = [
+      [
+        {
+          fields: [
+            { key: 'invoice_number', label: 'Invoice Number', description: 'd', type: 'string', required: true, autoAcceptThreshold: 0.9 },
+            { key: 'vendor_name', label: 'Vendor Name', description: 'd', type: 'string', required: true, autoAcceptThreshold: 0.9 },
+          ],
+        },
+      ],
+    ];
+    mocks.extractionsCalls = [[{ documentId: 'doc-1', id: 'ext-1', startedAt: new Date('2026-01-01T00:00:00Z') }]];
+    mocks.fieldValuesCalls = [[{ documentId: 'doc-1', fieldKey: 'vendor_name', status: 'needs_review', normalizedValue: 'Harrow & Fnch Materials', finalValue: null }]];
+
+    const names = await getDocumentDisplayNames(['doc-1'], 'schema-1');
+
+    expect(names.get('doc-1')).toBe('Harrow & Fnch Materials');
+  });
+
+  it('prefers finalValue over normalizedValue once the field is resolved', async () => {
+    mocks.schemasCalls = [[{ fields: [{ key: 'vendor_name', label: 'Vendor Name', description: 'd', type: 'string', required: true, autoAcceptThreshold: 0.9 }] }]];
+    mocks.extractionsCalls = [[{ documentId: 'doc-1', id: 'ext-1', startedAt: new Date('2026-01-01T00:00:00Z') }]];
+    mocks.fieldValuesCalls = [[{ documentId: 'doc-1', fieldKey: 'vendor_name', status: 'corrected', normalizedValue: 'Acme Corp', finalValue: 'Acme Corporation' }]];
+
+    const names = await getDocumentDisplayNames(['doc-1'], 'schema-1');
+
+    expect(names.get('doc-1')).toBe('Acme Corporation');
+  });
+
+  it('falls back to normalizedValue (never null) for a still-needs_review field, unlike export/build.ts which nulls unresolved data on purpose', async () => {
+    mocks.schemasCalls = [[{ fields: [{ key: 'vendor_name', label: 'Vendor Name', description: 'd', type: 'string', required: true, autoAcceptThreshold: 0.9 }] }]];
+    mocks.extractionsCalls = [[{ documentId: 'doc-1', id: 'ext-1', startedAt: new Date('2026-01-01T00:00:00Z') }]];
+    mocks.fieldValuesCalls = [[{ documentId: 'doc-1', fieldKey: 'vendor_name', status: 'needs_review', normalizedValue: 'Acme Corp', finalValue: null }]];
+
+    const names = await getDocumentDisplayNames(['doc-1'], 'schema-1');
+
+    expect(names.get('doc-1')).toBe('Acme Corp');
+  });
+
+  it('returns null for a document whose only fields are non-string (e.g. a table field), without querying extractions or field_values at all', async () => {
+    mocks.schemasCalls = [
+      [{ fields: [{ key: 'line_items', label: 'Line Items', description: 'd', type: 'table', required: true, autoAcceptThreshold: 0.9, columns: [] }] }],
+    ];
+
+    const names = await getDocumentDisplayNames(['doc-2'], 'schema-2');
+
+    expect(names.get('doc-2')).toBeNull();
+    expect(mocks.extractionsCalls).toHaveLength(0);
+    expect(mocks.fieldValuesCalls).toHaveLength(0);
+  });
+
+  it('batches every document into a single extractions query and a single field_values query, not one per document', async () => {
+    mocks.schemasCalls = [[{ fields: [{ key: 'vendor_name', label: 'Vendor Name', description: 'd', type: 'string', required: true, autoAcceptThreshold: 0.9 }] }]];
+    mocks.extractionsCalls = [
+      [
+        { documentId: 'doc-1', id: 'ext-1', startedAt: new Date('2026-01-01T00:00:00Z') },
+        { documentId: 'doc-2', id: 'ext-2', startedAt: new Date('2026-01-01T00:00:00Z') },
+      ],
+    ];
+    mocks.fieldValuesCalls = [
+      [
+        { documentId: 'doc-1', fieldKey: 'vendor_name', status: 'needs_review', normalizedValue: 'Acme', finalValue: null },
+        { documentId: 'doc-2', fieldKey: 'vendor_name', status: 'needs_review', normalizedValue: 'Globex', finalValue: null },
+      ],
+    ];
+
+    const names = await getDocumentDisplayNames(['doc-1', 'doc-2'], 'schema-1');
+
+    // Each table's mock queue only holds ONE response. If the implementation queried
+    // per-document instead of batching, doc-2's queries would consume the empty
+    // fallback (see nextFrom) and its name would come back null instead of 'Globex'.
+    expect(names.get('doc-1')).toBe('Acme');
+    expect(names.get('doc-2')).toBe('Globex');
   });
 });

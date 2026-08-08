@@ -52,6 +52,14 @@ export function fetchNextReviewItem(): Promise<{ item: ReviewItem | null }> {
   return request('/api/review/next');
 }
 
+// Unlike fetchNextReviewItem, this never legitimately resolves with a null item —
+// the backend always finds something to show for a fine, non-archived document, or
+// rejects with a structured 404 (document_not_found / no_review_item_found) that
+// ApiError surfaces via its `.code`.
+export function fetchReviewItemForDocument(documentId: string): Promise<{ item: ReviewItem }> {
+  return request(`/api/review/documents/${documentId}`);
+}
+
 export function fetchReviewQueueStats(): Promise<ReviewQueueStats> {
   return request('/api/review/stats');
 }

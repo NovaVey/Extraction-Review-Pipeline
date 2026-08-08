@@ -29,6 +29,11 @@ export interface ReviewItemRow {
   id: string;
   rowIndex: number;
   cells: Record<string, unknown>;
+  // The reviewer-confirmed cells, when this row has already been resolved via a
+  // correction — null otherwise. Prefer this over `cells` for display whenever the
+  // row is resolved, so a document opened via "jump to document" shows what was
+  // actually decided rather than the stale pre-correction extracted value.
+  finalCells: Record<string, unknown> | null;
   confidence: string;
   confidenceParts: ConfidenceParts;
   status: string;
@@ -53,6 +58,8 @@ export interface ReviewItem {
   description: string;
   rawValue: string | null;
   normalizedValue: string | null;
+  // Same reasoning as ReviewItemRow.finalCells, for the field level.
+  finalValue: string | null;
   confidence: string;
   confidenceParts: ConfidenceParts;
   validatorStatus: string;
@@ -90,6 +97,10 @@ export interface BatchDocumentSummary {
   filename: string;
   status: string;
   needsReview: boolean;
+  // A real identifying value (an invoice number or vendor name) pulled from the
+  // document's own extraction, when one's available — null falls back to a
+  // cleaned-up filename in the UI.
+  displayName: string | null;
 }
 
 export interface BatchWithDocuments {

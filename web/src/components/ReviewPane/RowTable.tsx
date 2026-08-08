@@ -66,7 +66,12 @@ interface RowTableRowProps {
 }
 
 function RowTableRow({ row, columns, onAcceptRow, onCorrectRow, locked }: RowTableRowProps) {
-  const originals = Object.fromEntries(columns.map((col) => [col.key, String(row.cells[col.key] ?? '')]));
+  // Prefer the reviewer-confirmed cells once the row is resolved, rather than the
+  // (possibly stale, pre-correction) extracted cells — same reasoning as
+  // ReviewPane's identical fix, for the same "jump to an already-resolved document"
+  // reason.
+  const displayCells = row.status === 'needs_review' ? row.cells : (row.finalCells ?? row.cells);
+  const originals = Object.fromEntries(columns.map((col) => [col.key, String(displayCells[col.key] ?? '')]));
   const [values, setValues] = useState<Record<string, string>>(originals);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);

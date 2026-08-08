@@ -24,7 +24,11 @@ interface ReviewPaneProps {
 }
 
 export function ReviewPane({ item, onAcceptField, onCorrectField, onAcceptRow, onCorrectRow, locked = false, globallyAccepted = false }: ReviewPaneProps) {
-  const originalValue = item.normalizedValue ?? '';
+  // Prefer the reviewer-confirmed value once the field is resolved, rather than the
+  // (possibly stale, pre-correction) extracted value — matters now that
+  // getReviewItemForDocument's "jump to document" fallback can surface an already-
+  // corrected field, which getNextReviewItem's priority queue never used to.
+  const originalValue = (item.status === 'needs_review' ? item.normalizedValue : (item.finalValue ?? item.normalizedValue)) ?? '';
   const [value, setValue] = useState(originalValue);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -212,7 +216,15 @@ export function ReviewPane({ item, onAcceptField, onCorrectField, onAcceptRow, o
         </div>
         {!canActOnField && (
           <p className="mt-1 text-xs text-[#4B5563]">
-            This field is already {item.status.replaceAll('_', ' ')} — only its rows below still need review.
+            {item.fieldType === 'table'
+              ? // A resolved table FIELD can still show here purely because one of its
+                // rows still needs review (see the rows section below) — that's the
+                // one case this sentence is actually true for.
+                `This field is already ${item.status.replaceAll('_', ' ')} — only its rows below still need review.`
+              : // A resolved SCALAR field has no rows section at all — reachable now via
+                // getReviewItemForDocument's schema-order fallback (jump to a fully
+                // resolved document), which the priority queue never used to surface.
+                `This field is already ${item.status.replaceAll('_', ' ')}.`}
           </p>
         )}
         {error && (

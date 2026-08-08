@@ -35,7 +35,7 @@ const itemA = {
   description: 'The name of the company issuing the invoice.',
   rawValue: 'Harrow & Fnch Materials', normalizedValue: 'Harrow & Fnch Materials',
   confidence: '0.62', confidenceParts: { sampleAgreement: 0.67, validatorStatus: 'valid', crossFieldChecks: [] },
-  validatorStatus: 'valid', status: 'needs_review', rows: null, pages: [pageA],
+  validatorStatus: 'valid', status: 'needs_review', finalValue: null, rows: null, pages: [pageA],
 };
 
 const itemB = {
@@ -44,7 +44,7 @@ const itemB = {
   description: 'The date payment is due.',
   rawValue: '2025-10-20', normalizedValue: '2025-10-20',
   confidence: '0.78', confidenceParts: { sampleAgreement: 0.67, validatorStatus: 'valid', crossFieldChecks: [] },
-  validatorStatus: 'valid', status: 'needs_review', rows: null, pages: [pageA],
+  validatorStatus: 'valid', status: 'needs_review', finalValue: null, rows: null, pages: [pageA],
 };
 
 const ROW3_INITIAL = {
@@ -60,7 +60,7 @@ const itemC = {
   description: 'Itemized products or services billed.',
   rawValue: null, normalizedValue: null,
   confidence: '0.91', confidenceParts: { sampleAgreement: 1, validatorStatus: 'valid', crossFieldChecks: [{ name: 'line_items_sum_equals_subtotal', passed: true }] },
-  validatorStatus: 'valid', status: 'auto_accepted',
+  validatorStatus: 'valid', status: 'auto_accepted', finalValue: null,
   rows: [
     { id: 'row-1', rowIndex: 0, cells: { description: 'Disposable coveralls (case of 20)', quantity: 6, unit_price: '$80.77', amount: '$484.62' }, confidence: '1', confidenceParts: { sampleAgreement: 1, validatorStatus: 'valid', crossFieldChecks: [] }, status: 'auto_accepted', columns: lineItemColumns },
     { id: 'row-2', rowIndex: 1, cells: { description: 'Safety gloves, size L (pair)', quantity: 27, unit_price: '$17.46', amount: '$471.42' }, confidence: '1', confidenceParts: { sampleAgreement: 1, validatorStatus: 'valid', crossFieldChecks: [] }, status: 'auto_accepted', columns: lineItemColumns },
@@ -76,7 +76,7 @@ const itemD = {
   description: 'The unique identifier printed on the invoice.',
   rawValue: 'INV-31S87', normalizedValue: 'INV-31S87',
   confidence: '0.58', confidenceParts: { sampleAgreement: 0.5, validatorStatus: 'valid', crossFieldChecks: [] },
-  validatorStatus: 'valid', status: 'needs_review', rows: null, pages: [pageC],
+  validatorStatus: 'valid', status: 'needs_review', finalValue: null, rows: null, pages: [pageC],
 };
 
 // Snapshotted once, right after itemC.rows is built above and before any request
@@ -90,11 +90,22 @@ const ROWS_INITIAL = new Map(
 );
 
 let itemAStatus, itemBStatus, itemDStatus, archivedDocumentIds;
+// Real finalValue, mirroring api/src/review/actions.ts: set to the (possibly
+// edited) value on accept/correct, cleared back to null on undo. Needed because
+// GET /review/documents/:id (unlike /review/next) can return itemA/B/D in ANY
+// status, not just needs_review -- without this, jumping back to an
+// already-corrected document via the batch dropdown would show the stale
+// pre-correction value with editing controls still enabled, silently discarding
+// the very correction the dropdown feature exists to let a reviewer confirm.
+let itemAFinal, itemBFinal, itemDFinal;
 
 function resetState() {
   itemAStatus = 'needs_review';
   itemBStatus = 'needs_review';
   itemDStatus = 'needs_review';
+  itemAFinal = null;
+  itemBFinal = null;
+  itemDFinal = null;
   archivedDocumentIds = new Set();
   // Previously only row-3 (the one that starts needs_review) was restored — rows
   // 1, 2, and 4 start auto_accepted but a stray request could still flip any of
@@ -151,13 +162,39 @@ function computeStats() {
 
 // Mirrors the real API's GET /batches/:id shape (routes/batches.ts) — a trimmed,
 // needsReview-badged view of the batch's active (non-archived) documents.
+//
+// displayName mirrors getDocumentDisplayNames's real logic: the first declared
+// *string* schema field with a value, preferring the live finalValue once
+// resolved (queue.ts's RESOLVED_STATUSES.has(status) ? finalValue ?? normalizedValue
+// : normalizedValue) so correcting a vendor name updates the dropdown label, not
+// just the field itself. doc-1 only has vendor_name (itemA) as a string candidate
+// -- due_date (itemB) is type 'date', never a naming candidate. doc-2 (itemC) has
+// no scalar string field at all (line_items is type 'table'), so it's always null.
 function batchDocuments() {
   const docs = [
-    { id: itemA.documentId, filename: itemA.documentFilename, status: 'processed', needsReview: itemAStatus === 'needs_review' || itemBStatus === 'needs_review' },
-    { id: itemC.documentId, filename: itemC.documentFilename, status: 'processed', needsReview: itemC.rows.some((r) => r.status === 'needs_review') },
-    { id: itemD.documentId, filename: itemD.documentFilename, status: 'processed', needsReview: itemDStatus === 'needs_review' },
+    {
+      id: itemA.documentId, filename: itemA.documentFilename, status: 'processed',
+      needsReview: itemAStatus === 'needs_review' || itemBStatus === 'needs_review',
+      displayName: itemAFinal ?? itemA.normalizedValue,
+    },
+    { id: itemC.documentId, filename: itemC.documentFilename, status: 'processed', needsReview: itemC.rows.some((r) => r.status === 'needs_review'), displayName: null },
+    {
+      id: itemD.documentId, filename: itemD.documentFilename, status: 'processed',
+      needsReview: itemDStatus === 'needs_review',
+      displayName: itemDFinal ?? itemD.normalizedValue,
+    },
   ];
   return docs.filter((d) => !archivedDocumentIds.has(d.id));
+}
+
+// Overlays live status/finalValue onto a static item fixture (itemA/B/D) without
+// mutating the shared object -- see the itemAFinal comment above for why this is
+// needed at all, and why nextUnarchivedItem() (used by GET /review/next) doesn't
+// need the same treatment: it only ever returns one of these while its status IS
+// still needs_review, so the object's own (never-mutated) `status`/`finalValue`
+// literals already agree with reality at the one moment they're actually read.
+function liveItem(item, status, finalValue) {
+  return { ...item, status, finalValue };
 }
 
 function readBody(req) {
@@ -231,6 +268,25 @@ async function handleApi(req, res, apiPath) {
   if (req.method === 'GET' && apiPath === '/review/next') {
     return sendJson(res, 200, { item: nextUnarchivedItem() });
   }
+  const reviewDocumentMatch = apiPath.match(/^\/review\/documents\/([^/]+)$/);
+  if (req.method === 'GET' && reviewDocumentMatch) {
+    const id = reviewDocumentMatch[1];
+    if (archivedDocumentIds.has(id)) return sendJson(res, 404, { error: 'document_not_found' });
+    if (id === itemA.documentId) {
+      // Mirrors getReviewItemForDocument: prefer whichever of itemA/itemB is still
+      // needs_review; itemA wins when both are (lower confidence, 0.62 vs 0.78,
+      // same asc(confidence) tie-break as the real backend), and itemA also wins
+      // the fully-resolved fallback (it's the schema-order-first field -- vendor_name
+      // before due_date). itemB only wins the one remaining case: it's still
+      // needs_review while itemA is already resolved.
+      const showB = itemBStatus === 'needs_review' && itemAStatus !== 'needs_review';
+      const item = showB ? liveItem(itemB, itemBStatus, itemBFinal) : liveItem(itemA, itemAStatus, itemAFinal);
+      return sendJson(res, 200, { item });
+    }
+    if (id === itemC.documentId) return sendJson(res, 200, { item: itemC });
+    if (id === itemD.documentId) return sendJson(res, 200, { item: liveItem(itemD, itemDStatus, itemDFinal) });
+    return sendJson(res, 404, { error: 'document_not_found' });
+  }
   if (req.method === 'GET' && apiPath === '/review/stats') {
     return sendJson(res, 200, computeStats());
   }
@@ -246,19 +302,25 @@ async function handleApi(req, res, apiPath) {
   const fieldAcceptMatch = apiPath.match(/^\/review\/fields\/([^/]+)\/accept$/);
   if (req.method === 'POST' && fieldAcceptMatch) {
     const id = fieldAcceptMatch[1];
-    if (id === itemA.fieldValueId) itemAStatus = 'confirmed';
-    else if (id === itemB.fieldValueId) itemBStatus = 'confirmed';
-    else if (id === itemD.fieldValueId) itemDStatus = 'confirmed';
+    // finalValue = the field's own (unedited) normalizedValue on accept, matching
+    // review/actions.ts's acceptField: `finalValue: field.normalizedValue`.
+    if (id === itemA.fieldValueId) { itemAStatus = 'confirmed'; itemAFinal = itemA.normalizedValue; }
+    else if (id === itemB.fieldValueId) { itemBStatus = 'confirmed'; itemBFinal = itemB.normalizedValue; }
+    else if (id === itemD.fieldValueId) { itemDStatus = 'confirmed'; itemDFinal = itemD.normalizedValue; }
     return sendJson(res, 200, { id, status: 'confirmed' });
   }
 
   const fieldCorrectMatch = apiPath.match(/^\/review\/fields\/([^/]+)\/correct$/);
   if (req.method === 'POST' && fieldCorrectMatch) {
     const id = fieldCorrectMatch[1];
-    await readBody(req);
-    if (id === itemA.fieldValueId) itemAStatus = 'corrected';
-    else if (id === itemB.fieldValueId) itemBStatus = 'corrected';
-    else if (id === itemD.fieldValueId) itemDStatus = 'corrected';
+    const body = await readBody(req);
+    // finalValue = the reviewer's typed newValue, matching correctField's
+    // `finalValue: newValue` -- previously the body was read (to drain the request
+    // and reject invalid JSON) but silently discarded, so a correction was never
+    // actually retrievable anywhere past this response.
+    if (id === itemA.fieldValueId) { itemAStatus = 'corrected'; itemAFinal = body.newValue; }
+    else if (id === itemB.fieldValueId) { itemBStatus = 'corrected'; itemBFinal = body.newValue; }
+    else if (id === itemD.fieldValueId) { itemDStatus = 'corrected'; itemDFinal = body.newValue; }
     return sendJson(res, 200, { id, status: 'corrected' });
   }
 
@@ -280,9 +342,10 @@ async function handleApi(req, res, apiPath) {
   const fieldUndoMatch = apiPath.match(/^\/review\/fields\/([^/]+)\/undo$/);
   if (req.method === 'POST' && fieldUndoMatch) {
     const id = fieldUndoMatch[1];
-    if (id === itemA.fieldValueId) itemAStatus = 'needs_review';
-    else if (id === itemB.fieldValueId) itemBStatus = 'needs_review';
-    else if (id === itemD.fieldValueId) itemDStatus = 'needs_review';
+    // finalValue cleared back to null, matching undoField's `finalValue: null`.
+    if (id === itemA.fieldValueId) { itemAStatus = 'needs_review'; itemAFinal = null; }
+    else if (id === itemB.fieldValueId) { itemBStatus = 'needs_review'; itemBFinal = null; }
+    else if (id === itemD.fieldValueId) { itemDStatus = 'needs_review'; itemDFinal = null; }
     return sendJson(res, 200, { id, status: 'needs_review' });
   }
 
