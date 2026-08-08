@@ -139,21 +139,21 @@ describe('GET /review/next', () => {
 
 describe('POST /review/fields/:id/accept', () => {
   it('round trips a successful accept', async () => {
-    vi.mocked(acceptField).mockResolvedValue({ id: 'fv-1', status: 'confirmed' });
+    vi.mocked(acceptField).mockResolvedValue({ id: '55555555-5555-5555-5555-555555555555', status: 'confirmed' });
     const app = buildApp();
 
-    const res = await app.inject({ method: 'POST', url: '/review/fields/fv-1/accept', payload: { reviewer: 'alice' } });
+    const res = await app.inject({ method: 'POST', url: '/review/fields/55555555-5555-5555-5555-555555555555/accept', payload: { reviewer: 'alice' } });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ id: 'fv-1', status: 'confirmed' });
-    expect(acceptField).toHaveBeenCalledWith('fv-1', 'alice', undefined);
+    expect(res.json()).toEqual({ id: '55555555-5555-5555-5555-555555555555', status: 'confirmed' });
+    expect(acceptField).toHaveBeenCalledWith('55555555-5555-5555-5555-555555555555', 'alice', undefined);
   });
 
   it('returns 400 not_needs_review when the action rejects with NotNeedsReviewError', async () => {
     vi.mocked(acceptField).mockRejectedValue(new NotNeedsReviewError('already resolved'));
     const app = buildApp();
 
-    const res = await app.inject({ method: 'POST', url: '/review/fields/fv-1/accept', payload: { reviewer: 'alice' } });
+    const res = await app.inject({ method: 'POST', url: '/review/fields/55555555-5555-5555-5555-555555555555/accept', payload: { reviewer: 'alice' } });
 
     expect(res.statusCode).toBe(400);
     expect(res.json()).toEqual({ error: 'not_needs_review' });
@@ -163,7 +163,7 @@ describe('POST /review/fields/:id/accept', () => {
     vi.mocked(acceptField).mockRejectedValue(new NotFoundError('no such field'));
     const app = buildApp();
 
-    const res = await app.inject({ method: 'POST', url: '/review/fields/missing/accept', payload: { reviewer: 'alice' } });
+    const res = await app.inject({ method: 'POST', url: '/review/fields/99999999-9999-9999-9999-999999999999/accept', payload: { reviewer: 'alice' } });
 
     expect(res.statusCode).toBe(404);
     expect(res.json()).toEqual({ error: 'field_not_found' });
@@ -171,7 +171,7 @@ describe('POST /review/fields/:id/accept', () => {
 
   it('returns 400 invalid_body when reviewer is missing', async () => {
     const app = buildApp();
-    const res = await app.inject({ method: 'POST', url: '/review/fields/fv-1/accept', payload: {} });
+    const res = await app.inject({ method: 'POST', url: '/review/fields/55555555-5555-5555-5555-555555555555/accept', payload: {} });
 
     expect(res.statusCode).toBe(400);
     expect(res.json().error).toBe('invalid_body');
@@ -181,74 +181,74 @@ describe('POST /review/fields/:id/accept', () => {
 
 describe('POST /review/fields/:id/correct', () => {
   it('round trips a successful correction', async () => {
-    vi.mocked(correctField).mockResolvedValue({ id: 'fv-1', status: 'corrected' });
+    vi.mocked(correctField).mockResolvedValue({ id: '55555555-5555-5555-5555-555555555555', status: 'corrected' });
     const app = buildApp();
 
     const res = await app.inject({
       method: 'POST',
-      url: '/review/fields/fv-1/correct',
+      url: '/review/fields/55555555-5555-5555-5555-555555555555/correct',
       payload: { reviewer: 'alice', newValue: 'INV-2', reason: 'typo' },
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ id: 'fv-1', status: 'corrected' });
-    expect(correctField).toHaveBeenCalledWith('fv-1', 'alice', 'INV-2', 'typo', undefined);
+    expect(res.json()).toEqual({ id: '55555555-5555-5555-5555-555555555555', status: 'corrected' });
+    expect(correctField).toHaveBeenCalledWith('55555555-5555-5555-5555-555555555555', 'alice', 'INV-2', 'typo', undefined);
   });
 });
 
 describe('POST /review/rows/:id/accept and /correct', () => {
   it('round trips a successful row accept', async () => {
-    vi.mocked(acceptRow).mockResolvedValue({ id: 'row-1', status: 'confirmed' });
+    vi.mocked(acceptRow).mockResolvedValue({ id: '66666666-6666-6666-6666-666666666666', status: 'confirmed' });
     const app = buildApp();
 
-    const res = await app.inject({ method: 'POST', url: '/review/rows/row-1/accept', payload: { reviewer: 'alice' } });
+    const res = await app.inject({ method: 'POST', url: '/review/rows/66666666-6666-6666-6666-666666666666/accept', payload: { reviewer: 'alice' } });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ id: 'row-1', status: 'confirmed' });
+    expect(res.json()).toEqual({ id: '66666666-6666-6666-6666-666666666666', status: 'confirmed' });
   });
 
   it('returns 404 review_row_not_found when the row does not exist', async () => {
     vi.mocked(acceptRow).mockRejectedValue(new NotFoundError('no such row'));
     const app = buildApp();
 
-    const res = await app.inject({ method: 'POST', url: '/review/rows/missing/accept', payload: { reviewer: 'alice' } });
+    const res = await app.inject({ method: 'POST', url: '/review/rows/99999999-9999-9999-9999-999999999999/accept', payload: { reviewer: 'alice' } });
 
     expect(res.statusCode).toBe(404);
     expect(res.json()).toEqual({ error: 'review_row_not_found' });
   });
 
   it('round trips a successful row correction', async () => {
-    vi.mocked(correctRow).mockResolvedValue({ id: 'row-1', status: 'confirmed' });
+    vi.mocked(correctRow).mockResolvedValue({ id: '66666666-6666-6666-6666-666666666666', status: 'confirmed' });
     const app = buildApp();
 
     const res = await app.inject({
       method: 'POST',
-      url: '/review/rows/row-1/correct',
+      url: '/review/rows/66666666-6666-6666-6666-666666666666/correct',
       payload: { reviewer: 'alice', columnKey: 'amount', newValue: '9.99' },
     });
 
     expect(res.statusCode).toBe(200);
-    expect(correctRow).toHaveBeenCalledWith('row-1', 'alice', 'amount', '9.99', undefined, undefined);
+    expect(correctRow).toHaveBeenCalledWith('66666666-6666-6666-6666-666666666666', 'alice', 'amount', '9.99', undefined, undefined);
   });
 });
 
 describe('POST /review/fields/:id/undo and /review/rows/:id/undo', () => {
   it('round trips a successful field undo', async () => {
-    vi.mocked(undoField).mockResolvedValue({ id: 'fv-1', status: 'needs_review' });
+    vi.mocked(undoField).mockResolvedValue({ id: '55555555-5555-5555-5555-555555555555', status: 'needs_review' });
     const app = buildApp();
 
-    const res = await app.inject({ method: 'POST', url: '/review/fields/fv-1/undo', payload: { reviewer: 'alice' } });
+    const res = await app.inject({ method: 'POST', url: '/review/fields/55555555-5555-5555-5555-555555555555/undo', payload: { reviewer: 'alice' } });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ id: 'fv-1', status: 'needs_review' });
-    expect(undoField).toHaveBeenCalledWith('fv-1', 'alice', undefined);
+    expect(res.json()).toEqual({ id: '55555555-5555-5555-5555-555555555555', status: 'needs_review' });
+    expect(undoField).toHaveBeenCalledWith('55555555-5555-5555-5555-555555555555', 'alice', undefined);
   });
 
   it('returns 400 nothing_to_undo when the field was never resolved by a review action', async () => {
     vi.mocked(undoField).mockRejectedValue(new NothingToUndoError('nothing to undo'));
     const app = buildApp();
 
-    const res = await app.inject({ method: 'POST', url: '/review/fields/fv-1/undo', payload: { reviewer: 'alice' } });
+    const res = await app.inject({ method: 'POST', url: '/review/fields/55555555-5555-5555-5555-555555555555/undo', payload: { reviewer: 'alice' } });
 
     expect(res.statusCode).toBe(400);
     expect(res.json()).toEqual({ error: 'nothing_to_undo' });
@@ -258,27 +258,27 @@ describe('POST /review/fields/:id/undo and /review/rows/:id/undo', () => {
     vi.mocked(undoField).mockRejectedValue(new TableFieldUndoUnsupportedError('unsupported'));
     const app = buildApp();
 
-    const res = await app.inject({ method: 'POST', url: '/review/fields/fv-1/undo', payload: { reviewer: 'alice' } });
+    const res = await app.inject({ method: 'POST', url: '/review/fields/55555555-5555-5555-5555-555555555555/undo', payload: { reviewer: 'alice' } });
 
     expect(res.statusCode).toBe(400);
     expect(res.json()).toEqual({ error: 'table_field_undo_unsupported' });
   });
 
   it('round trips a successful row undo', async () => {
-    vi.mocked(undoRow).mockResolvedValue({ id: 'row-1', status: 'needs_review' });
+    vi.mocked(undoRow).mockResolvedValue({ id: '66666666-6666-6666-6666-666666666666', status: 'needs_review' });
     const app = buildApp();
 
-    const res = await app.inject({ method: 'POST', url: '/review/rows/row-1/undo', payload: { reviewer: 'alice' } });
+    const res = await app.inject({ method: 'POST', url: '/review/rows/66666666-6666-6666-6666-666666666666/undo', payload: { reviewer: 'alice' } });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ id: 'row-1', status: 'needs_review' });
+    expect(res.json()).toEqual({ id: '66666666-6666-6666-6666-666666666666', status: 'needs_review' });
   });
 
   it('returns 404 review_row_not_found when the row does not exist', async () => {
     vi.mocked(undoRow).mockRejectedValue(new NotFoundError('no such row'));
     const app = buildApp();
 
-    const res = await app.inject({ method: 'POST', url: '/review/rows/missing/undo', payload: { reviewer: 'alice' } });
+    const res = await app.inject({ method: 'POST', url: '/review/rows/99999999-9999-9999-9999-999999999999/undo', payload: { reviewer: 'alice' } });
 
     expect(res.statusCode).toBe(404);
     expect(res.json()).toEqual({ error: 'review_row_not_found' });
@@ -301,7 +301,7 @@ describe('review sessions', () => {
     vi.mocked(endReviewSession).mockRejectedValue(new NotFoundError('no such session'));
     const app = buildApp();
 
-    const res = await app.inject({ method: 'POST', url: '/review-sessions/missing/end' });
+    const res = await app.inject({ method: 'POST', url: '/review-sessions/99999999-9999-9999-9999-999999999999/end' });
 
     expect(res.statusCode).toBe(404);
     expect(res.json()).toEqual({ error: 'review_session_not_found' });
@@ -313,17 +313,17 @@ describe('GET /pages/:id/image', () => {
     mocks.mockPage = null;
     const app = buildApp();
 
-    const res = await app.inject({ method: 'GET', url: '/pages/missing/image' });
+    const res = await app.inject({ method: 'GET', url: '/pages/99999999-9999-9999-9999-999999999999/image' });
 
     expect(res.statusCode).toBe(404);
     expect(res.json()).toEqual({ error: 'page_not_found' });
   });
 
   it('streams the page image as image/png', async () => {
-    mocks.mockPage = { id: 'page-1', imagePath: 'batches/b/x/pages/1.png' };
+    mocks.mockPage = { id: '77777777-7777-7777-7777-777777777777', imagePath: 'batches/b/x/pages/1.png' };
     const app = buildApp();
 
-    const res = await app.inject({ method: 'GET', url: '/pages/page-1/image' });
+    const res = await app.inject({ method: 'GET', url: '/pages/77777777-7777-7777-7777-777777777777/image' });
 
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toBe('image/png');
