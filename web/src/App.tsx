@@ -11,6 +11,7 @@ import {
   fetchBatch,
   fetchNextReviewItem,
   fetchReviewItemForDocument,
+  fetchReviewItemForField,
   fetchReviewQueueStats,
   startReviewSession,
   undoField,
@@ -122,6 +123,19 @@ function App() {
   // sequence number still matches the latest one when it resolves — i.e. only the
   // most recently *started* action ever gets to offer Undo.
   const actionSeqRef = useRef(0);
+  // Every field/row THIS session has resolved (accept or correct), keyed by id, kept
+  // for the session's entire lifetime — NOT just the 8-second toast window lastAction
+  // covers. The batch dropdown now keeps every field listed even once resolved, so a
+  // reviewer can jump back and hit in-place Undo (see handleUndoResolvedField/Row
+  // below) on something this session resolved long after the toast is gone, or on
+  // something a DIFFERENT session/reviewer resolved. Only the first case should
+  // reverse this session's own itemsReviewed/itemsCorrected counters — undoField/
+  // undoRow's bumpSessionCounters does a raw, unfloored SQL decrement on whatever
+  // reviewSessionId it's given, so crediting the wrong session (or a session that
+  // never touched this item) would silently corrupt real counts. Populated in
+  // armLastAction alongside lastAction, entries removed once actually undone (by
+  // either path) or when the session itself ends (handleConfirmChangeReviewer).
+  const sessionResolvedRef = useRef(new Map<string, { kind: 'field' | 'row'; deltaReviewed: number; deltaCorrected: number }>());
 
   const beginSession = useCallback((reviewer: string) => {
     setSessionError(null);
@@ -224,6 +238,31 @@ function App() {
     [applyFetchedItem],
   );
 
+  // Jumps to one exact field (the batch dropdown's per-field rows), unlike
+  // handleSelectDocument's "whatever this document currently needs most" —
+  // getReviewItemForField is a direct id lookup, so it can only ever 404
+  // field_not_found or document_not_found; no_review_item_found doesn't apply here
+  // and is deliberately not in this error mapper (copying handleSelectDocument's
+  // mapper verbatim would leave that case falling through to the generic message,
+  // which is fine, but the two 404s this route CAN throw deserve their own wording).
+  const handleSelectField = useCallback(
+    (fieldValueId: string) => {
+      if (refetchTimeoutRef.current !== null) {
+        clearTimeout(refetchTimeoutRef.current);
+        refetchTimeoutRef.current = null;
+      }
+      applyFetchedItem(
+        () => fetchReviewItemForField(fieldValueId),
+        (err) => {
+          if (err instanceof ApiError && err.code === 'field_not_found') return 'That field is no longer available.';
+          if (err instanceof ApiError && err.code === 'document_not_found') return 'That document is no longer available.';
+          return 'Could not open that field — try again.';
+        },
+      );
+    },
+    [applyFetchedItem],
+  );
+
   // Supplementary to the review flow itself — a failed stats fetch shouldn't block
   // or interrupt reviewing, so it's swallowed rather than surfaced as an ErrorState.
   const refetchStats = useCallback(() => {
@@ -279,6 +318,9 @@ function App() {
     if (lastActionTimeoutRef.current !== null) clearTimeout(lastActionTimeoutRef.current);
     setLastAction(action);
     lastActionTimeoutRef.current = setTimeout(() => setLastAction(null), UNDO_WINDOW_MS);
+    // Recorded indefinitely (not cleared by the timeout above, unlike the toast
+    // itself) — see sessionResolvedRef's own comment for why.
+    sessionResolvedRef.current.set(action.id, { kind: action.kind, deltaReviewed: action.deltaReviewed, deltaCorrected: action.deltaCorrected });
   }, []);
 
   // Shared by every accept/correct control: bump the right local counters and
@@ -471,6 +513,11 @@ function App() {
       lastActionTimeoutRef.current = null;
     }
     setLastAction(null);
+    // sessionResolvedRef only ever makes sense for the session that's ending —
+    // its whole point is answering "did THIS session resolve this item", and a
+    // stale entry surviving into a new session would misattribute someone else's
+    // (or no one's) delta to whoever reviews next.
+    sessionResolvedRef.current.clear();
     if (reviewSessionId) endReviewSessionBeacon(reviewSessionId);
     localStorage.removeItem(REVIEWER_STORAGE_KEY);
     setReviewerName(null);
@@ -494,6 +541,12 @@ function App() {
       else await undoRow(action.id, reviewerName, reviewSessionId);
       setItemsReviewed((n) => Math.max(0, n - action.deltaReviewed));
       setItemsCorrected((n) => Math.max(0, n - action.deltaCorrected));
+      // Undone via the toast — no outstanding delta left to attribute to this
+      // session for the in-place Undo path to find later (harmless either way:
+      // once undone the item is needs_review again and no longer offers an
+      // in-place Undo button at all, but this keeps the map from accumulating
+      // stale entries for the rest of the session).
+      sessionResolvedRef.current.delete(action.id);
       // A prior runAction() may have scheduled its own debounced refetch (see
       // runAction's 400ms setTimeout) that hasn't fired yet — this undo's refetch
       // already supersedes it (queueFetchSeqRef resolves any actual ordering race
@@ -511,6 +564,99 @@ function App() {
       // already touched again by something else in the meantime), there's nothing
       // coherent left to roll back to; the toast is already dismissed.
     }
+  }
+
+  // In-place Undo for a field reached via the batch dropdown (or the "already
+  // resolved" view generally) — unlike handleUndo above, this isn't tied to a
+  // *just*-performed action: the field may have been resolved much earlier this
+  // session, by a different session, or before this session even started. Checking
+  // sessionResolvedRef first is what keeps itemsReviewed/itemsCorrected honest in
+  // every case — see that ref's own comment for the full reasoning. Deliberately
+  // NOT unified with handleUndo: that function always reverses a delta it knows for
+  // certain this session just applied; this one often has no delta to reverse at
+  // all, and forcing them through one implementation risks silently reintroducing
+  // exactly the session-accounting bug this split avoids.
+  async function handleUndoResolvedField(fieldValueId: string): Promise<ActionOutcome> {
+    if (!reviewerName) return { ok: false, message: 'Not ready yet.' };
+    const recorded = sessionResolvedRef.current.get(fieldValueId);
+    if (refetchTimeoutRef.current !== null) {
+      clearTimeout(refetchTimeoutRef.current);
+      refetchTimeoutRef.current = null;
+    }
+    // The toast may currently be offering to undo this SAME field — firing this
+    // in-place undo makes that pending offer stale (a second undo attempt would
+    // 400 nothing_to_undo). Clear it so it doesn't linger claiming an action that
+    // no longer applies.
+    if (lastAction?.kind === 'field' && lastAction.id === fieldValueId) {
+      if (lastActionTimeoutRef.current !== null) {
+        clearTimeout(lastActionTimeoutRef.current);
+        lastActionTimeoutRef.current = null;
+      }
+      setLastAction(null);
+    }
+    try {
+      await undoField(fieldValueId, reviewerName, recorded ? (reviewSessionId ?? undefined) : undefined);
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'nothing_to_undo') {
+        // Someone/something else already undid this (or it was never actually
+        // resolved by a review action) — a race, not a real failure. Refetch
+        // anyway so the pane reflects whatever the current real state is.
+        applyFetchedItem(() => fetchReviewItemForField(fieldValueId), () => 'Could not refresh this field.');
+        return { ok: true, noop: true };
+      }
+      return { ok: false, message: 'Could not undo this — try again.' };
+    }
+    sessionResolvedRef.current.delete(fieldValueId);
+    if (recorded) {
+      setItemsReviewed((n) => Math.max(0, n - recorded.deltaReviewed));
+      setItemsCorrected((n) => Math.max(0, n - recorded.deltaCorrected));
+    }
+    // Stay on this exact field, now editable again, rather than advancing to
+    // whatever the global queue would pick next — the reviewer explicitly asked
+    // to revisit THIS field.
+    applyFetchedItem(() => fetchReviewItemForField(fieldValueId), () => 'Could not refresh this field.');
+    refetchStats();
+    refetchBatchDocuments(currentBatchId);
+    return { ok: true };
+  }
+
+  // Same shape as handleUndoResolvedField, for a single row within a table field —
+  // see that function's comments for the full reasoning. Rows have no standalone
+  // fetch endpoint, so re-fetches via the CURRENT item's own fieldValueId (the
+  // parent field) rather than the row id itself.
+  async function handleUndoResolvedRow(rowId: string): Promise<ActionOutcome> {
+    if (!reviewerName) return { ok: false, message: 'Not ready yet.' };
+    const currentFieldValueId = queueState.status === 'loaded' ? (queueState.item?.fieldValueId ?? null) : null;
+    const recorded = sessionResolvedRef.current.get(rowId);
+    if (refetchTimeoutRef.current !== null) {
+      clearTimeout(refetchTimeoutRef.current);
+      refetchTimeoutRef.current = null;
+    }
+    if (lastAction?.kind === 'row' && lastAction.id === rowId) {
+      if (lastActionTimeoutRef.current !== null) {
+        clearTimeout(lastActionTimeoutRef.current);
+        lastActionTimeoutRef.current = null;
+      }
+      setLastAction(null);
+    }
+    try {
+      await undoRow(rowId, reviewerName, recorded ? (reviewSessionId ?? undefined) : undefined);
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'nothing_to_undo') {
+        if (currentFieldValueId) applyFetchedItem(() => fetchReviewItemForField(currentFieldValueId), () => 'Could not refresh this field.');
+        return { ok: true, noop: true };
+      }
+      return { ok: false, message: 'Could not undo this row — try again.' };
+    }
+    sessionResolvedRef.current.delete(rowId);
+    if (recorded) {
+      setItemsReviewed((n) => Math.max(0, n - recorded.deltaReviewed));
+      setItemsCorrected((n) => Math.max(0, n - recorded.deltaCorrected));
+    }
+    if (currentFieldValueId) applyFetchedItem(() => fetchReviewItemForField(currentFieldValueId), () => 'Could not refresh this field.');
+    refetchStats();
+    refetchBatchDocuments(currentBatchId);
+    return { ok: true };
   }
 
   function handleRequestRemoveDocument() {
@@ -578,7 +724,9 @@ function App() {
           stats={stats}
           batchDocuments={batchDocuments}
           currentDocumentId={queueState.status === 'loaded' ? (queueState.item?.documentId ?? null) : null}
+          currentFieldValueId={queueState.status === 'loaded' ? (queueState.item?.fieldValueId ?? null) : null}
           onSelectDocument={handleSelectDocument}
+          onSelectField={handleSelectField}
         />
         <main className="min-h-0 flex-1 overflow-y-auto p-4">
           {sessionError && !reviewSessionId ? (
@@ -604,8 +752,10 @@ function App() {
                 item={queueState.item}
                 onAcceptField={handleAcceptField}
                 onCorrectField={handleCorrectField}
+                onUndoField={handleUndoResolvedField}
                 onAcceptRow={handleAcceptRow}
                 onCorrectRow={handleCorrectRow}
+                onUndoRow={handleUndoResolvedRow}
                 locked={isTransitioning}
                 globallyAccepted={globallyAcceptedId === queueState.item.fieldValueId}
               />

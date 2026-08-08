@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Check, Pencil, X } from 'lucide-react';
+import { Check, Pencil, RotateCcw, X } from 'lucide-react';
 import type { ActionOutcome, ReviewItem } from '../../types';
 import { humanizeFilename } from '../../lib/humanizeFilename';
 import { ConfidenceBadge, CrossFieldChecksList, ResolutionStatusBadge, ValidatorStatusBadge } from './Badges';
@@ -9,8 +9,15 @@ interface ReviewPaneProps {
   item: ReviewItem;
   onAcceptField: (fieldValueId: string) => Promise<ActionOutcome>;
   onCorrectField: (fieldValueId: string, newValue: string) => Promise<ActionOutcome>;
+  // Reverts an already-resolved (confirmed/corrected) SCALAR field back to
+  // needs_review — see the canUndo computation below for why table fields never
+  // offer this. Distinct from App.tsx's toast-based Undo: this is reachable any
+  // time this (possibly long-since-resolved) field is viewed, not just in the brief
+  // window right after resolving it.
+  onUndoField: (fieldValueId: string) => Promise<ActionOutcome>;
   onAcceptRow: (rowId: string) => Promise<ActionOutcome>;
   onCorrectRow: (rowId: string, columnKey: string, newValue: string) => Promise<ActionOutcome>;
+  onUndoRow: (rowId: string) => Promise<ActionOutcome>;
   // True while the app is transitioning to the next item after a resolved action —
   // dimmed visually by the parent already, but that alone (pointer-events-none)
   // doesn't stop an already-focused control from still receiving keystrokes, so
@@ -23,7 +30,17 @@ interface ReviewPaneProps {
   globallyAccepted?: boolean;
 }
 
-export function ReviewPane({ item, onAcceptField, onCorrectField, onAcceptRow, onCorrectRow, locked = false, globallyAccepted = false }: ReviewPaneProps) {
+export function ReviewPane({
+  item,
+  onAcceptField,
+  onCorrectField,
+  onUndoField,
+  onAcceptRow,
+  onCorrectRow,
+  onUndoRow,
+  locked = false,
+  globallyAccepted = false,
+}: ReviewPaneProps) {
   // Prefer the reviewer-confirmed value once the field is resolved, rather than the
   // (possibly stale, pre-correction) extracted value — matters now that
   // getReviewItemForDocument's "jump to document" fallback can surface an already-
@@ -35,13 +52,20 @@ export function ReviewPane({ item, onAcceptField, onCorrectField, onAcceptRow, o
   // Which control most recently saved successfully, so only that one shows the
   // brief "Saved" confirmation rather than both buttons claiming it at once.
   const [savedVia, setSavedVia] = useState<'accept' | 'correct' | null>(null);
+  const [undoPending, setUndoPending] = useState(false);
+  const [undoError, setUndoError] = useState<string | null>(null);
 
   // New item loaded (fieldValueId changed) — start the input fresh rather than
-  // carrying over the previous item's edit state.
+  // carrying over the previous item's edit state. Also covers a successful
+  // in-place undo: it flips item.status back to needs_review without changing
+  // fieldValueId, and originalValue is already in this dependency array (it
+  // recomputes from item.status), so this re-fires and clears undoError too.
   useEffect(() => {
     setValue(originalValue);
     setError(null);
     setSavedVia(null);
+    setUndoPending(false);
+    setUndoError(null);
   }, [item.fieldValueId, originalValue]);
 
   const isChanged = value !== originalValue;
@@ -50,6 +74,11 @@ export function ReviewPane({ item, onAcceptField, onCorrectField, onAcceptRow, o
   // may already be resolved while it's shown here purely because one of its rows
   // still needs review — accepting/correcting it again would 400 not_needs_review.
   const canActOnField = item.status === 'needs_review';
+  // Undo is only offered for a resolved SCALAR field — undoField itself throws
+  // TableFieldUndoUnsupportedError for a table field (accepting one bulk-resolves
+  // its rows too; undo can't cleanly reverse that half of the action), so a table
+  // field never gets this button regardless of its own status.
+  const canUndo = item.fieldType !== 'table' && (item.status === 'confirmed' || item.status === 'corrected');
   // Folds in `locked` (mirrors RowTable's identical `busy`) so these handlers have
   // their own JS-level circuit breaker, not just the disabled DOM attribute — matches
   // RowTableRow's handleAcceptRow/handleCellKeyDown, which already re-check this
@@ -84,6 +113,20 @@ export function ReviewPane({ item, onAcceptField, onCorrectField, onAcceptRow, o
     // Same noop case as handleAccept above — the edit was NOT persisted.
     if (result.noop) { setError('Already resolved elsewhere — refresh to see the current value.'); return; }
     setSavedVia('correct');
+  }
+
+  // No local "success" state to set on success, unlike handleAccept/
+  // handleSaveCorrection above — a successful undo re-fetches this field from the
+  // parent (see App.tsx's handleUndoResolvedField), which re-renders this whole
+  // pane with item.status back to needs_review and canActOnField true again;
+  // there's nothing left for this component's own state to reflect.
+  async function handleUndoClick() {
+    if (!canUndo || undoPending) return;
+    setUndoPending(true);
+    setUndoError(null);
+    const result = await onUndoField(item.fieldValueId);
+    setUndoPending(false);
+    if (!result.ok) setUndoError(result.message);
   }
 
   // Same reset Esc already does on the input — pulled out into its own function so
@@ -215,21 +258,38 @@ export function ReviewPane({ item, onAcceptField, onCorrectField, onAcceptRow, o
           </button>
         </div>
         {!canActOnField && (
-          <p className="mt-1 text-xs text-[#4B5563]">
-            {item.fieldType === 'table'
-              ? // A resolved table FIELD can still show here purely because one of its
-                // rows still needs review (see the rows section below) — that's the
-                // one case this sentence is actually true for.
-                `This field is already ${item.status.replaceAll('_', ' ')} — only its rows below still need review.`
-              : // A resolved SCALAR field has no rows section at all — reachable now via
-                // getReviewItemForDocument's schema-order fallback (jump to a fully
-                // resolved document), which the priority queue never used to surface.
-                `This field is already ${item.status.replaceAll('_', ' ')}.`}
-          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <p className="text-xs text-[#4B5563]">
+              {item.fieldType === 'table'
+                ? // A resolved table FIELD can still show here purely because one of its
+                  // rows still needs review (see the rows section below) — that's the
+                  // one case this sentence is actually true for.
+                  `This field is already ${item.status.replaceAll('_', ' ')} — only its rows below still need review.`
+                : // A resolved SCALAR field has no rows section at all — reachable now via
+                  // getReviewItemForDocument's schema-order fallback (jump to a fully
+                  // resolved document), which the priority queue never used to surface.
+                  `This field is already ${item.status.replaceAll('_', ' ')}.`}
+            </p>
+            {canUndo && (
+              <button
+                type="button"
+                onClick={() => void handleUndoClick()}
+                disabled={undoPending}
+                className="flex items-center gap-1 rounded-md border border-[#D1D5DB] bg-gray-50 px-2 py-0.5 text-xs font-medium text-[#4B5563] hover:bg-gray-100 disabled:opacity-60"
+              >
+                <RotateCcw size={12} /> {undoPending ? 'Undoing…' : 'Undo'}
+              </button>
+            )}
+          </div>
         )}
         {error && (
           <p role="alert" className="mt-1 text-xs text-red-600">
             {error}
+          </p>
+        )}
+        {undoError && (
+          <p role="alert" className="mt-1 text-xs text-red-600">
+            {undoError}
           </p>
         )}
       </div>
@@ -240,7 +300,7 @@ export function ReviewPane({ item, onAcceptField, onCorrectField, onAcceptRow, o
             Accepting the field above resolves any rows below still marked "needs review" too — row-level accepts aren't the only
             way to clear them.
           </p>
-          <RowTable rows={item.rows} onAcceptRow={onAcceptRow} onCorrectRow={onCorrectRow} locked={locked} />
+          <RowTable rows={item.rows} onAcceptRow={onAcceptRow} onCorrectRow={onCorrectRow} onUndoRow={onUndoRow} locked={locked} />
         </div>
       )}
     </div>

@@ -89,6 +89,17 @@ export interface ReviewSession {
   startedAt: string;
 }
 
+// Mirrors api/src/review/queue.ts's BatchFieldSummary — one entry per reviewable
+// field on a document, always present regardless of resolution status (the batch
+// dropdown intentionally keeps every field listed even once resolved, so a reviewer
+// can jump back and double-check or undo any decision at any time).
+export interface BatchFieldSummary {
+  fieldValueId: string;
+  fieldKey: string;
+  label: string;
+  needsReview: boolean;
+}
+
 // Mirrors api/src/routes/batches.ts's GET /batches/:id response — a trimmed,
 // needsReview-badged view of a batch's active (non-archived) documents, not the raw
 // documents table row.
@@ -101,6 +112,7 @@ export interface BatchDocumentSummary {
   // document's own extraction, when one's available — null falls back to a
   // cleaned-up filename in the UI.
   displayName: string | null;
+  fields: BatchFieldSummary[];
 }
 
 export interface BatchWithDocuments {
