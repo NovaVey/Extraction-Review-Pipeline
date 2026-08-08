@@ -162,33 +162,44 @@ function computeStats() {
 
 // Mirrors the real API's GET /batches/:id shape (routes/batches.ts) — a trimmed,
 // needsReview-badged view of the batch's active (non-archived) documents, now with
-// a per-field breakdown (mirroring getBatchFieldSummaries) so the dropdown can show
-// one entry per FIELD, not per document -- doc-1 alone has two (vendor_name, due_date),
-// which is the exact "3 documents but 4 fields" undercount this feature exists to fix.
+// a per-field breakdown (mirroring getBatchFieldSummaries) so the Queue Progress
+// stat rows can expand to one entry per FIELD, not per document -- doc-1 alone has
+// two (vendor_name, due_date), which is the exact "3 documents but 4 fields"
+// undercount the original per-document dropdown had.
+//
+// Each field's `status` (needs_review/auto_accepted/confirmed/corrected) is what the
+// stat rows group by -- itemA/B/D's own live status variables already hold exactly
+// that value (they only ever take on needs_review/confirmed/corrected in this fixture,
+// a subset of the real union), so no extra bucketing is needed for them. itemC (the
+// table field) is different: its own field-level status is a static 'auto_accepted'
+// literal that's never reassigned (only its individual rows mutate), so it needs the
+// same "still needs_review if any row is" OR-check the real getBatchFieldSummaries
+// applies via rowPendingFieldValueIds.
 //
 // displayName mirrors getDocumentDisplayNames's real logic: the first declared
 // *string* schema field with a value, preferring the live finalValue once
 // resolved (queue.ts's RESOLVED_STATUSES.has(status) ? finalValue ?? normalizedValue
-// : normalizedValue) so correcting a vendor name updates the dropdown label, not
-// just the field itself. doc-1 only has vendor_name (itemA) as a string candidate
-// -- due_date (itemB) is type 'date', never a naming candidate. doc-2 (itemC) has
-// no scalar string field at all (line_items is type 'table'), so it's always null.
+// : normalizedValue) so correcting a vendor name updates the label, not just the
+// field itself. doc-1 only has vendor_name (itemA) as a string candidate -- due_date
+// (itemB) is type 'date', never a naming candidate. doc-2 (itemC) has no scalar
+// string field at all (line_items is type 'table'), so it's always null.
 function batchDocuments() {
+  const itemCNeedsReview = itemC.rows.some((r) => r.status === 'needs_review');
   const docs = [
     {
       id: itemA.documentId, filename: itemA.documentFilename, status: 'processed',
       needsReview: itemAStatus === 'needs_review' || itemBStatus === 'needs_review',
       displayName: itemAFinal ?? itemA.normalizedValue,
       fields: [
-        { fieldValueId: itemA.fieldValueId, fieldKey: itemA.fieldKey, label: itemA.label, needsReview: itemAStatus === 'needs_review' },
-        { fieldValueId: itemB.fieldValueId, fieldKey: itemB.fieldKey, label: itemB.label, needsReview: itemBStatus === 'needs_review' },
+        { fieldValueId: itemA.fieldValueId, fieldKey: itemA.fieldKey, label: itemA.label, status: itemAStatus },
+        { fieldValueId: itemB.fieldValueId, fieldKey: itemB.fieldKey, label: itemB.label, status: itemBStatus },
       ],
     },
     {
       id: itemC.documentId, filename: itemC.documentFilename, status: 'processed',
-      needsReview: itemC.rows.some((r) => r.status === 'needs_review'), displayName: null,
+      needsReview: itemCNeedsReview, displayName: null,
       fields: [
-        { fieldValueId: itemC.fieldValueId, fieldKey: itemC.fieldKey, label: itemC.label, needsReview: itemC.rows.some((r) => r.status === 'needs_review') },
+        { fieldValueId: itemC.fieldValueId, fieldKey: itemC.fieldKey, label: itemC.label, status: itemCNeedsReview ? 'needs_review' : itemC.status },
       ],
     },
     {
@@ -196,7 +207,7 @@ function batchDocuments() {
       needsReview: itemDStatus === 'needs_review',
       displayName: itemDFinal ?? itemD.normalizedValue,
       fields: [
-        { fieldValueId: itemD.fieldValueId, fieldKey: itemD.fieldKey, label: itemD.label, needsReview: itemDStatus === 'needs_review' },
+        { fieldValueId: itemD.fieldValueId, fieldKey: itemD.fieldKey, label: itemD.label, status: itemDStatus },
       ],
     },
   ];

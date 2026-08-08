@@ -1,31 +1,41 @@
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
-import type { BatchDocumentSummary, ReviewQueueStats } from '../../types';
+import type { BatchDocumentSummary, BatchFieldSummary, ReviewQueueStats } from '../../types';
 import { humanizeFilename } from '../../lib/humanizeFilename';
+
+type StatusKey = BatchFieldSummary['status'];
+type Tone = 'amber' | 'teal' | 'green' | 'blue';
 
 interface QueueSidebarProps {
   stats: ReviewQueueStats | null;
   // The batch of whatever document is currently under review, and its sibling
-  // documents' live status -- null (not an empty array) while there's no current
-  // batch to show yet (no item loaded) or the fetch is still in flight, so the
-  // section can be omitted entirely rather than flashing an empty list.
+  // documents' live per-field status -- null (not an empty array) while there's no
+  // current batch to show yet (no item loaded) or the fetch is still in flight, so
+  // the stat rows below stay non-expandable rather than flashing an empty panel.
   batchDocuments: BatchDocumentSummary[] | null;
-  currentDocumentId: string | null;
   currentFieldValueId: string | null;
-  onSelectDocument: (documentId: string) => void;
   onSelectField: (fieldValueId: string) => void;
 }
 
-export function QueueSidebar({
-  stats,
-  batchDocuments,
-  currentDocumentId,
-  currentFieldValueId,
-  onSelectDocument,
-  onSelectField,
-}: QueueSidebarProps) {
+// The 4 top-level counts (the stats prop) are always GLOBAL, across every batch, not
+// just the current one -- and stay that way regardless of whether a batch is loaded,
+// because EmptyState's "100%, all caught up" display depends on them being available
+// with no current document/batch at all. Only the expandable list beneath each row is
+// batch-scoped, reusing whatever batchDocuments the sidebar already has in hand
+// (App.tsx's existing per-batch fetch) rather than a new cross-batch aggregate. This
+// replaces the previous separate "This Batch" dropdown trigger -- these rows already
+// show the count that dropdown was undercounting against (it grouped one entry per
+// document; this is already per-field), so the fix is to make the rows themselves the
+// trigger instead of duplicating a second control beside them.
+export function QueueSidebar({ stats, batchDocuments, currentFieldValueId, onSelectField }: QueueSidebarProps) {
   const resolved = stats ? stats.totalItems - stats.needsReview : 0;
   const pct = stats && stats.totalItems > 0 ? Math.round((resolved / stats.totalItems) * 100) : null;
+  const [expanded, setExpanded] = useState<StatusKey | null>(null);
+  const fieldsByStatus = groupFieldsByStatus(batchDocuments);
+
+  function toggle(status: StatusKey) {
+    setExpanded((current) => (current === status ? null : status));
+  }
 
   return (
     <aside className="flex w-60 shrink-0 flex-col gap-4 overflow-y-auto border-r border-[#E5E7EB] bg-white p-4">
@@ -54,198 +64,130 @@ export function QueueSidebar({
       </div>
 
       {stats !== null && (
-        <dl className="flex flex-col gap-2 text-sm">
-          <StatRow tone="amber" label="Needs review" value={stats.needsReview} />
-          <StatRow tone="teal" label="Auto-accepted" value={stats.autoAccepted} />
-          <StatRow tone="green" label="Confirmed" value={stats.confirmed} />
-          <StatRow tone="blue" label="Corrected" value={stats.corrected} />
-        </dl>
-      )}
-
-      {batchDocuments !== null && batchDocuments.length > 0 && (
-        <BatchDocumentsDropdown
-          documents={batchDocuments}
-          currentDocumentId={currentDocumentId}
-          currentFieldValueId={currentFieldValueId}
-          onSelectDocument={onSelectDocument}
-          onSelectField={onSelectField}
-        />
+        <div className="flex flex-col gap-1 text-sm">
+          {STAT_ROWS.map((row) => (
+            <StatRow
+              key={row.status}
+              tone={row.tone}
+              label={row.label}
+              value={statValue(stats, row.status)}
+              fields={fieldsByStatus.get(row.status) ?? []}
+              expanded={expanded === row.status}
+              onToggle={() => toggle(row.status)}
+              currentFieldValueId={currentFieldValueId}
+              onSelectField={onSelectField}
+            />
+          ))}
+        </div>
       )}
     </aside>
   );
 }
 
-const DOT_CLASSES: Record<'amber' | 'teal' | 'green' | 'blue', string> = {
+const STAT_ROWS: Array<{ tone: Tone; label: string; status: StatusKey }> = [
+  { tone: 'amber', label: 'Needs review', status: 'needs_review' },
+  { tone: 'teal', label: 'Auto-accepted', status: 'auto_accepted' },
+  { tone: 'green', label: 'Confirmed', status: 'confirmed' },
+  { tone: 'blue', label: 'Corrected', status: 'corrected' },
+];
+
+function statValue(stats: ReviewQueueStats, status: StatusKey): number {
+  switch (status) {
+    case 'needs_review':
+      return stats.needsReview;
+    case 'auto_accepted':
+      return stats.autoAccepted;
+    case 'confirmed':
+      return stats.confirmed;
+    case 'corrected':
+      return stats.corrected;
+  }
+}
+
+const DOT_CLASSES: Record<Tone, string> = {
   amber: 'bg-amber-500',
   teal: 'bg-teal-500',
   green: 'bg-green-500',
   blue: 'bg-blue-500',
 };
 
-function StatRow({ tone, label, value }: { tone: 'amber' | 'teal' | 'green' | 'blue'; label: string; value: number }) {
-  return (
-    <div className="flex items-center justify-between">
-      <dt className="flex items-center gap-2 text-[#4B5563]">
-        <span className={`h-1.5 w-1.5 rounded-full ${DOT_CLASSES[tone]}`} />
-        {label}
-      </dt>
-      <dd className="font-medium text-[#101114]">{value}</dd>
-    </div>
-  );
+interface BatchFieldRef {
+  fieldValueId: string;
+  fieldLabel: string;
+  documentLabel: string;
 }
 
-// humanizeFilename strips numbers/difficulty tags by design (fine for a single
-// document's own header, where "Invoice" reads cleanly) — but multiple documents in
-// this list can collapse to the identical humanized label (every doc in the
-// synthetic corpus's own batch is literally named "invoice_clean_NN.pdf"). Pulled
-// independently from the raw filename, not from humanizeFilename's output, since
-// that function already discarded the number and has no way to hand it back.
-const TRAILING_NUMBER_RE = /(\d+)(?=\.[^.]+$)/;
-
-// doc.displayName (a real vendor/invoice number, when the backend found one) is
-// preferred; this is only the fallback path for documents with no identifying data
-// extracted yet, so a same-batch collision is a real, expected possibility here, not
-// an edge case. Only used for the document GROUP HEADER label — field rows
-// underneath are labeled with their own field.label, which is always unique within
-// one document's own schema (a schema never declares two fields with the same key),
-// so no equivalent disambiguation is needed at that level.
-function disambiguatedLabels(documents: BatchDocumentSummary[]): Map<string, string> {
-  const baseLabelOf = new Map(documents.map((doc) => [doc.id, doc.displayName ?? humanizeFilename(doc.filename)]));
-  const counts = new Map<string, number>();
-  for (const label of baseLabelOf.values()) counts.set(label, (counts.get(label) ?? 0) + 1);
-
-  const seen = new Map<string, number>();
-  const labels = new Map<string, string>();
+// One entry per (document, field) pair in the current batch, bucketed by the field's
+// own status -- same bucketing precedence the backend already applies in
+// getBatchFieldSummaries (a table field with a still-pending row buckets as
+// needs_review even though its own field-level status is auto_accepted). Returns an
+// empty map (every row non-expandable) when there's no current batch loaded yet.
+function groupFieldsByStatus(documents: BatchDocumentSummary[] | null): Map<StatusKey, BatchFieldRef[]> {
+  const groups = new Map<StatusKey, BatchFieldRef[]>();
+  if (!documents) return groups;
   for (const doc of documents) {
-    const base = baseLabelOf.get(doc.id)!;
-    if ((counts.get(base) ?? 0) <= 1) {
-      labels.set(doc.id, base);
-      continue;
+    const documentLabel = doc.displayName ?? humanizeFilename(doc.filename);
+    for (const field of doc.fields) {
+      const list = groups.get(field.status) ?? [];
+      list.push({ fieldValueId: field.fieldValueId, fieldLabel: field.label, documentLabel });
+      groups.set(field.status, list);
     }
-    const occurrence = (seen.get(base) ?? 0) + 1;
-    seen.set(base, occurrence);
-    const numberMatch = doc.filename.match(TRAILING_NUMBER_RE);
-    labels.set(doc.id, numberMatch ? `${base} #${numberMatch[1]}` : `${base} (${occurrence})`);
   }
-  return labels;
+  return groups;
 }
 
-// Two-level dropdown: each document is a clickable group header (jumps to its
-// current-best item, same as before this change) with its own reviewable fields
-// listed underneath as independently clickable rows (jump to that EXACT field,
-// resolved or not). Previously one entry per document, which undercounted against
-// Queue Progress's per-FIELD total whenever a document had more than one field
-// needing attention -- see App.tsx's handleSelectDocument/handleSelectField for why
-// both jump actions are kept side by side rather than one replacing the other.
-function BatchDocumentsDropdown({
-  documents,
-  currentDocumentId,
-  currentFieldValueId,
-  onSelectDocument,
-  onSelectField,
-}: {
-  documents: BatchDocumentSummary[];
-  currentDocumentId: string | null;
+interface StatRowProps {
+  tone: Tone;
+  label: string;
+  value: number;
+  fields: BatchFieldRef[];
+  expanded: boolean;
+  onToggle: () => void;
   currentFieldValueId: string | null;
-  onSelectDocument: (documentId: string) => void;
   onSelectField: (fieldValueId: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const totalFields = documents.reduce((n, d) => n + d.fields.length, 0);
-  const needsReviewFieldCount = documents.reduce((n, d) => n + d.fields.filter((f) => f.needsReview).length, 0);
-  const labels = disambiguatedLabels(documents);
+}
 
-  // Close on outside click -- no existing dropdown/popover pattern anywhere in this
-  // codebase to reuse (verified), so this is the whole mechanism, not a partial one.
-  useEffect(() => {
-    if (!open) return;
-    function handleOutsideClick(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, [open]);
-
-  // stopPropagation first, matching every other Enter/Escape handler in this
-  // codebase (RowTable, ReviewPane) -- without it this would also reach App.tsx's
-  // document-level "nothing focused + Enter -> accept" global shortcut.
-  function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
-    if (event.key !== 'Escape') return;
-    event.stopPropagation();
-    setOpen(false);
-  }
-
-  function handleSelectDocumentHeader(documentId: string) {
-    setOpen(false);
-    onSelectDocument(documentId);
-  }
-
-  function handleSelectFieldRow(fieldValueId: string) {
-    setOpen(false);
-    onSelectField(fieldValueId);
-  }
+// Expandable only when the CURRENT batch actually has a field at this status -- value
+// is the global count and can be nonzero with nothing to show here (the matching
+// items are all in some other batch, or no batch is loaded at all), in which case the
+// row stays a plain, inert count exactly like before this change.
+function StatRow({ tone, label, value, fields, expanded, onToggle, currentFieldValueId, onSelectField }: StatRowProps) {
+  const expandable = fields.length > 0;
 
   return (
-    <div ref={containerRef} className="relative min-h-0" onKeyDown={handleKeyDown}>
+    <div>
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        aria-haspopup="menu"
-        className="flex w-full items-center justify-between gap-2 rounded-md border border-[#E5E7EB] px-2 py-1.5 text-left hover:bg-gray-50"
+        onClick={expandable ? onToggle : undefined}
+        disabled={!expandable}
+        aria-expanded={expandable ? expanded : undefined}
+        className="flex w-full items-center justify-between rounded-md px-1 py-1 text-left disabled:cursor-default enabled:hover:bg-gray-50"
       >
-        <span className="flex flex-col">
-          <span className="text-xs font-medium uppercase tracking-wide text-[#4B5563]">This Batch</span>
-          <span className="text-xs text-[#4B5563]">
-            {totalFields} field{totalFields === 1 ? '' : 's'}
-            {needsReviewFieldCount > 0 && `, ${needsReviewFieldCount} need review`}
-          </span>
+        <span className="flex items-center gap-2 text-[#4B5563]">
+          <span className={`h-1.5 w-1.5 rounded-full ${DOT_CLASSES[tone]}`} />
+          {label}
         </span>
-        <ChevronDown size={14} className={`shrink-0 text-[#4B5563] transition-transform ${open ? 'rotate-180' : ''}`} />
+        <span className="flex items-center gap-1">
+          <span className="font-medium text-[#101114]">{value}</span>
+          {expandable && <ChevronDown size={12} className={`text-[#4B5563] transition-transform ${expanded ? 'rotate-180' : ''}`} />}
+        </span>
       </button>
 
-      {open && (
-        // max-h-80/overflow-y-auto: unlike the old one-row-per-document list, this
-        // can now hold several rows per document -- a real schema has up to 9 fields
-        // (scripts/fieldSpecs.ts) -- so an unbounded-height panel is a real risk here
-        // in a way it wasn't before.
-        <div
-          role="menu"
-          aria-label="Fields in this batch"
-          className="absolute z-30 mt-1 max-h-80 w-full overflow-y-auto rounded-md border border-[#E5E7EB] bg-white py-1 shadow-lg"
-        >
-          {documents.map((doc) => (
-            <div key={doc.id} role="group" aria-label={labels.get(doc.id)}>
-              <button
-                type="button"
-                role="menuitem"
-                title={doc.filename}
-                aria-current={doc.id === currentDocumentId ? 'true' : undefined}
-                onClick={() => handleSelectDocumentHeader(doc.id)}
-                className={`flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs font-medium ${
-                  doc.id === currentDocumentId ? 'bg-[#F3F4F6] text-[#101114]' : 'text-[#101114] hover:bg-gray-50'
-                }`}
-              >
-                <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${doc.needsReview ? 'bg-amber-500' : 'bg-green-500'}`} />
-                <span className="truncate">{labels.get(doc.id)}</span>
-              </button>
-              {doc.fields.map((field) => (
-                <button
-                  key={field.fieldValueId}
-                  type="button"
-                  role="menuitem"
-                  aria-current={field.fieldValueId === currentFieldValueId ? 'true' : undefined}
-                  onClick={() => handleSelectFieldRow(field.fieldValueId)}
-                  className={`flex w-full items-center gap-2 py-1 pl-6 pr-2 text-left text-xs ${
-                    field.fieldValueId === currentFieldValueId ? 'bg-[#F3F4F6] font-medium text-[#101114]' : 'text-[#4B5563] hover:bg-gray-50'
-                  }`}
-                >
-                  <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${field.needsReview ? 'bg-amber-500' : 'bg-green-500'}`} />
-                  <span className="truncate">{field.label}</span>
-                </button>
-              ))}
-            </div>
+      {expanded && expandable && (
+        <div role="region" aria-label={`${label} fields in this batch`} className="mt-1 flex max-h-64 flex-col gap-0.5 overflow-y-auto pl-3">
+          {fields.map((field) => (
+            <button
+              key={field.fieldValueId}
+              type="button"
+              aria-current={field.fieldValueId === currentFieldValueId ? 'true' : undefined}
+              title={`${field.documentLabel} — ${field.fieldLabel}`}
+              onClick={() => onSelectField(field.fieldValueId)}
+              className={`truncate rounded px-1.5 py-1 text-left text-xs ${
+                field.fieldValueId === currentFieldValueId ? 'bg-[#F3F4F6] font-medium text-[#101114]' : 'text-[#4B5563] hover:bg-gray-50'
+              }`}
+            >
+              {field.documentLabel} — {field.fieldLabel}
+            </button>
           ))}
         </div>
       )}

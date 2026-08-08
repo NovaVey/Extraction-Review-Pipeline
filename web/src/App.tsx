@@ -10,7 +10,6 @@ import {
   endReviewSessionBeacon,
   fetchBatch,
   fetchNextReviewItem,
-  fetchReviewItemForDocument,
   fetchReviewItemForField,
   fetchReviewQueueStats,
   startReviewSession,
@@ -157,7 +156,7 @@ function App() {
     return () => window.removeEventListener('pagehide', handlePageHide);
   }, [reviewSessionId]);
 
-  // Shared by refetchQueue and handleSelectDocument below — both end up wanting the
+  // Shared by refetchQueue and handleSelectField below — both end up wanting the
   // identical "bump the sequence guard, show loading/transitioning, apply the result
   // (or a caller-specific error) once it's still the latest in-flight fetch, reset
   // the just-resolved/globally-accepted trackers" behavior, just sourced from a
@@ -212,39 +211,14 @@ function App() {
     if (reviewSessionId) refetchQueue();
   }, [reviewSessionId, refetchQueue]);
 
-  // Jumps straight to a specific document (the batch-documents sidebar's "select"
-  // action) rather than waiting for the priority queue to reach it — see
-  // getReviewItemForDocument on the API side for what "straight to it" actually
-  // resolves to (its own next-needs-review field, or its first field if it's fully
-  // resolved). A 404 here is a real, distinguishable outcome (the document was
-  // removed/archived since the sidebar list was fetched, or somehow has nothing to
-  // show) — NOT the generic "could not reach the review queue" failure, which would
-  // be actively misleading for what's actually a one-document lookup failure.
-  const handleSelectDocument = useCallback(
-    (documentId: string) => {
-      if (refetchTimeoutRef.current !== null) {
-        clearTimeout(refetchTimeoutRef.current);
-        refetchTimeoutRef.current = null;
-      }
-      applyFetchedItem(
-        () => fetchReviewItemForDocument(documentId),
-        (err) => {
-          if (err instanceof ApiError && err.code === 'document_not_found') return 'That document is no longer available.';
-          if (err instanceof ApiError && err.code === 'no_review_item_found') return 'That document has no reviewable fields yet.';
-          return "Could not open that document — try again.";
-        },
-      );
-    },
-    [applyFetchedItem],
-  );
-
-  // Jumps to one exact field (the batch dropdown's per-field rows), unlike
-  // handleSelectDocument's "whatever this document currently needs most" —
+  // Jumps straight to one exact field (the Queue Progress stat rows' expandable
+  // per-field entries) rather than waiting for the priority queue to reach it —
   // getReviewItemForField is a direct id lookup, so it can only ever 404
-  // field_not_found or document_not_found; no_review_item_found doesn't apply here
-  // and is deliberately not in this error mapper (copying handleSelectDocument's
-  // mapper verbatim would leave that case falling through to the generic message,
-  // which is fine, but the two 404s this route CAN throw deserve their own wording).
+  // field_not_found or document_not_found (the field itself vanished, or the document
+  // it's on was removed/archived since the sidebar list was fetched) —
+  // no_review_item_found doesn't apply here since there's no candidate selection to
+  // come up empty. Always resolves regardless of the field's current status, so a
+  // reviewer can jump back to an already-resolved field to double-check or undo it.
   const handleSelectField = useCallback(
     (fieldValueId: string) => {
       if (refetchTimeoutRef.current !== null) {
@@ -723,9 +697,7 @@ function App() {
         <QueueSidebar
           stats={stats}
           batchDocuments={batchDocuments}
-          currentDocumentId={queueState.status === 'loaded' ? (queueState.item?.documentId ?? null) : null}
           currentFieldValueId={queueState.status === 'loaded' ? (queueState.item?.fieldValueId ?? null) : null}
-          onSelectDocument={handleSelectDocument}
           onSelectField={handleSelectField}
         />
         <main className="min-h-0 flex-1 overflow-y-auto p-4">
