@@ -90,6 +90,13 @@ function RowTableRow({ row, columns, onAcceptRow, onCorrectRow, locked }: RowTab
       const result = await onCorrectRow(row.id, columnKey, values[columnKey]);
       setPending(false);
       if (!result.ok) { setError(result.message); return; }
+      // A noop (result.ok but result.noop) means the server 400'd not_needs_review —
+      // someone/something else already resolved this row (e.g. the parent field's
+      // own Accept bulk-resolving it — see review/actions.ts's acceptField) and
+      // runAction() swallowed that as a non-error. The reviewer's typed edit was
+      // NOT persisted; showing the same green "Saved" state as a real save here
+      // would silently discard it with no indication anything was off.
+      if (result.noop) { setError('Already resolved elsewhere — refresh to see the current value.'); return; }
       setSaved(true);
     } else if (event.key === 'Escape') {
       event.stopPropagation();
@@ -105,6 +112,8 @@ function RowTableRow({ row, columns, onAcceptRow, onCorrectRow, locked }: RowTab
     const result = await onAcceptRow(row.id);
     setPending(false);
     if (!result.ok) { setError(result.message); return; }
+    // Same noop case as handleCellKeyDown above — nothing was actually accepted.
+    if (result.noop) { setError('Already resolved elsewhere — refresh to see the current value.'); return; }
     setSaved(true);
   }
 
