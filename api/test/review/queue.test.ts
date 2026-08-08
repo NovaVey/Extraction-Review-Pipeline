@@ -52,9 +52,18 @@ vi.mock('../../src/db/client.js', () => ({
   },
 }));
 
-const { getNextReviewItem, getReviewItemForDocument, getReviewQueueStats, getNeedsReviewDocumentIds, getDocumentDisplayNames, NoReviewableFieldError } =
-  await import('../../src/review/queue.js');
+const {
+  getNextReviewItem,
+  getReviewItemForDocument,
+  getReviewItemForField,
+  getReviewQueueStats,
+  getNeedsReviewDocumentIds,
+  getDocumentDisplayNames,
+  getBatchFieldSummaries,
+  NoReviewableFieldError,
+} = await import('../../src/review/queue.js');
 const { DocumentNotFoundError } = await import('../../src/documents/archive.js');
+const { NotFoundError } = await import('../../src/review/actions.js');
 
 beforeEach(() => {
   mocks.fieldValueRowsCalls = [];
@@ -856,5 +865,251 @@ describe('getDocumentDisplayNames', () => {
     // fallback (see nextFrom) and its name would come back null instead of 'Globex'.
     expect(names.get('doc-1')).toBe('Acme');
     expect(names.get('doc-2')).toBe('Globex');
+  });
+});
+
+describe('getReviewItemForField', () => {
+  it('returns the field by direct id lookup (scalar)', async () => {
+    mocks.fieldValuesCalls = [
+      [
+        {
+          id: 'fv-1',
+          documentId: 'doc-1',
+          extractionId: 'ext-1',
+          fieldKey: 'invoice_number',
+          fieldType: 'string',
+          rawValue: 'INV-1',
+          normalizedValue: 'INV-1',
+          finalValue: null,
+          confidence: '0.4',
+          confidenceParts: { sampleAgreement: 0.4 },
+          validatorStatus: 'valid',
+          status: 'needs_review',
+        },
+      ],
+    ];
+    mocks.documentsCalls = [[{ id: 'doc-1', filename: 'invoice.pdf', batchId: 'batch-1', archivedAt: null }]];
+    mocks.extractionsCalls = [[{ id: 'ext-1', schemaId: 'schema-1' }]];
+    mocks.schemasCalls = [
+      [
+        {
+          id: 'schema-1',
+          fields: [{ key: 'invoice_number', label: 'Invoice Number', description: 'The invoice number', type: 'string', required: true, autoAcceptThreshold: 0.9 }],
+        },
+      ],
+    ];
+    mocks.pagesCalls = [[{ id: 'page-1', pageNumber: 1, width: 100, height: 200 }]];
+
+    const item = await getReviewItemForField('fv-1');
+
+    expect(item).toEqual({
+      fieldValueId: 'fv-1',
+      documentId: 'doc-1',
+      documentFilename: 'invoice.pdf',
+      batchId: 'batch-1',
+      fieldKey: 'invoice_number',
+      fieldType: 'string',
+      label: 'Invoice Number',
+      description: 'The invoice number',
+      rawValue: 'INV-1',
+      normalizedValue: 'INV-1',
+      finalValue: null,
+      confidence: '0.4',
+      confidenceParts: { sampleAgreement: 0.4 },
+      validatorStatus: 'valid',
+      status: 'needs_review',
+      rows: null,
+      pages: [{ id: 'page-1', pageNumber: 1, width: 100, height: 200 }],
+    });
+  });
+
+  it('returns a table field with its full row set, resolved or not -- this route never filters by status', async () => {
+    mocks.fieldValuesCalls = [
+      [
+        {
+          id: 'fv-table',
+          documentId: 'doc-2',
+          extractionId: 'ext-2',
+          fieldKey: 'line_items',
+          fieldType: 'table',
+          rawValue: null,
+          normalizedValue: null,
+          finalValue: null,
+          confidence: '0.95',
+          confidenceParts: {},
+          validatorStatus: 'valid',
+          status: 'auto_accepted',
+        },
+      ],
+    ];
+    mocks.documentsCalls = [[{ id: 'doc-2', filename: 'po.pdf', batchId: null, archivedAt: null }]];
+    mocks.extractionsCalls = [[{ id: 'ext-2', schemaId: 'schema-2' }]];
+    mocks.schemasCalls = [
+      [
+        {
+          id: 'schema-2',
+          fields: [
+            {
+              key: 'line_items',
+              label: 'Line Items',
+              description: 'd',
+              type: 'table',
+              required: true,
+              autoAcceptThreshold: 0.9,
+              columns: [{ key: 'description', label: 'Description', type: 'string', required: true }],
+            },
+          ],
+        },
+      ],
+    ];
+    mocks.pagesCalls = [[]];
+    mocks.fieldValueRowsCalls = [
+      [{ id: 'row-1', rowIndex: 0, cells: { description: 'Widget' }, finalCells: null, confidence: '1', confidenceParts: {}, status: 'auto_accepted' }],
+    ];
+
+    const item = await getReviewItemForField('fv-table');
+
+    expect(item.fieldValueId).toBe('fv-table');
+    expect(item.status).toBe('auto_accepted');
+    expect(item.rows).toHaveLength(1);
+  });
+
+  it('throws NotFoundError when the field value does not exist', async () => {
+    mocks.fieldValuesCalls = [[]];
+
+    await expect(getReviewItemForField('missing')).rejects.toThrow(NotFoundError);
+    expect(mocks.documentsCalls).toHaveLength(0);
+  });
+
+  it('throws DocumentNotFoundError when the owning document does not exist', async () => {
+    mocks.fieldValuesCalls = [[{ id: 'fv-1', documentId: 'doc-gone', extractionId: 'ext-1', fieldKey: 'x', fieldType: 'string', status: 'needs_review' }]];
+    mocks.documentsCalls = [[]];
+
+    await expect(getReviewItemForField('fv-1')).rejects.toThrow(DocumentNotFoundError);
+    expect(mocks.extractionsCalls).toHaveLength(0);
+  });
+
+  it('throws DocumentNotFoundError when the owning document is archived', async () => {
+    mocks.fieldValuesCalls = [[{ id: 'fv-1', documentId: 'doc-1', extractionId: 'ext-1', fieldKey: 'x', fieldType: 'string', status: 'needs_review' }]];
+    mocks.documentsCalls = [[{ id: 'doc-1', filename: 'invoice.pdf', batchId: null, archivedAt: new Date('2026-01-01T00:00:00Z') }]];
+
+    await expect(getReviewItemForField('fv-1')).rejects.toThrow(DocumentNotFoundError);
+    expect(mocks.extractionsCalls).toHaveLength(0);
+  });
+
+  // The single-field-id analog of getReviewItemForDocument's superseded-extraction
+  // guard -- easy to get wrong by trusting the field_value id alone without
+  // re-verifying it against the document's actual current extraction.
+  it('throws NotFoundError when the field belongs to a superseded (non-latest) extraction', async () => {
+    mocks.fieldValuesCalls = [[{ id: 'fv-old', documentId: 'doc-1', extractionId: 'ext-old', fieldKey: 'x', fieldType: 'string', status: 'needs_review' }]];
+    mocks.documentsCalls = [[{ id: 'doc-1', filename: 'invoice.pdf', batchId: null, archivedAt: null }]];
+    // The document's actual latest extraction is a different one than the field
+    // value's own extractionId.
+    mocks.extractionsCalls = [[{ id: 'ext-new', schemaId: 'schema-1' }]];
+
+    await expect(getReviewItemForField('fv-old')).rejects.toThrow(NotFoundError);
+  });
+});
+
+describe('getBatchFieldSummaries', () => {
+  it('returns an empty map for an empty document list, issuing no queries at all', async () => {
+    const summaries = await getBatchFieldSummaries([], 'schema-1');
+
+    expect(summaries).toEqual(new Map());
+    expect(mocks.schemasCalls).toHaveLength(0);
+    expect(mocks.extractionsCalls).toHaveLength(0);
+    expect(mocks.fieldValuesCalls).toHaveLength(0);
+    expect(mocks.fieldValueRowsCalls).toHaveLength(0);
+  });
+
+  it('lists fields in schema-declared order, not field_values query-return order', async () => {
+    mocks.schemasCalls = [
+      [
+        {
+          fields: [
+            { key: 'invoice_number', label: 'Invoice Number', description: 'd', type: 'string', required: true, autoAcceptThreshold: 0.9 },
+            { key: 'vendor_name', label: 'Vendor Name', description: 'd', type: 'string', required: true, autoAcceptThreshold: 0.9 },
+            { key: 'due_date', label: 'Due Date', description: 'd', type: 'date', required: true, autoAcceptThreshold: 0.9 },
+          ],
+        },
+      ],
+    ];
+    mocks.extractionsCalls = [[{ documentId: 'doc-1', id: 'ext-1', schemaId: 'schema-1', startedAt: new Date('2026-01-01T00:00:00Z') }]];
+    // Returned out of schema order on purpose, to prove the result re-sorts by
+    // schema declaration rather than passing through query-return order.
+    mocks.fieldValuesCalls = [
+      [
+        { id: 'fv-due', documentId: 'doc-1', fieldKey: 'due_date', status: 'needs_review' },
+        { id: 'fv-invnum', documentId: 'doc-1', fieldKey: 'invoice_number', status: 'confirmed' },
+        { id: 'fv-vendor', documentId: 'doc-1', fieldKey: 'vendor_name', status: 'needs_review' },
+      ],
+    ];
+    mocks.fieldValueRowsCalls = [[]];
+
+    const summaries = await getBatchFieldSummaries(['doc-1'], 'schema-1');
+
+    expect(summaries.get('doc-1')?.map((f) => f.fieldKey)).toEqual(['invoice_number', 'vendor_name', 'due_date']);
+  });
+
+  it('marks needsReview true for a field whose own status is resolved but which has a still-pending row', async () => {
+    mocks.schemasCalls = [
+      [{ fields: [{ key: 'line_items', label: 'Line Items', description: 'd', type: 'table', required: true, autoAcceptThreshold: 0.9, columns: [] }] }],
+    ];
+    mocks.extractionsCalls = [[{ documentId: 'doc-1', id: 'ext-1', schemaId: 'schema-1', startedAt: new Date('2026-01-01T00:00:00Z') }]];
+    mocks.fieldValuesCalls = [[{ id: 'fv-table', documentId: 'doc-1', fieldKey: 'line_items', status: 'auto_accepted' }]];
+    mocks.fieldValueRowsCalls = [[{ fieldValueId: 'fv-table' }]];
+
+    const summaries = await getBatchFieldSummaries(['doc-1'], 'schema-1');
+
+    expect(summaries.get('doc-1')).toEqual([{ fieldValueId: 'fv-table', fieldKey: 'line_items', label: 'Line Items', needsReview: true }]);
+  });
+
+  // Same defensive fallback buildReviewItem already has for a field_value whose
+  // fieldKey doesn't match any current schema field (a hand-edited/legacy row) --
+  // without it, such a field would be silently dropped from the dropdown entirely,
+  // reintroducing the exact "3 of 4" undercount this feature exists to fix.
+  it('still includes a field_value whose fieldKey matches no current schema field, labeled with its own fieldKey', async () => {
+    mocks.schemasCalls = [[{ fields: [{ key: 'vendor_name', label: 'Vendor Name', description: 'd', type: 'string', required: true, autoAcceptThreshold: 0.9 }] }]];
+    mocks.extractionsCalls = [[{ documentId: 'doc-1', id: 'ext-1', schemaId: 'schema-1', startedAt: new Date('2026-01-01T00:00:00Z') }]];
+    mocks.fieldValuesCalls = [
+      [
+        { id: 'fv-vendor', documentId: 'doc-1', fieldKey: 'vendor_name', status: 'needs_review' },
+        { id: 'fv-legacy', documentId: 'doc-1', fieldKey: 'legacy_field', status: 'needs_review' },
+      ],
+    ];
+    mocks.fieldValueRowsCalls = [[]];
+
+    const summaries = await getBatchFieldSummaries(['doc-1'], 'schema-1');
+
+    expect(summaries.get('doc-1')).toEqual([
+      { fieldValueId: 'fv-vendor', fieldKey: 'vendor_name', label: 'Vendor Name', needsReview: true },
+      { fieldValueId: 'fv-legacy', fieldKey: 'legacy_field', label: 'legacy_field', needsReview: true },
+    ]);
+  });
+
+  it('batches every document into a single extractions query and a single field_values query, not one per document', async () => {
+    mocks.schemasCalls = [[{ fields: [{ key: 'vendor_name', label: 'Vendor Name', description: 'd', type: 'string', required: true, autoAcceptThreshold: 0.9 }] }]];
+    mocks.extractionsCalls = [
+      [
+        { documentId: 'doc-1', id: 'ext-1', schemaId: 'schema-1', startedAt: new Date('2026-01-01T00:00:00Z') },
+        { documentId: 'doc-2', id: 'ext-2', schemaId: 'schema-1', startedAt: new Date('2026-01-01T00:00:00Z') },
+      ],
+    ];
+    mocks.fieldValuesCalls = [
+      [
+        { id: 'fv-1', documentId: 'doc-1', fieldKey: 'vendor_name', status: 'needs_review' },
+        { id: 'fv-2', documentId: 'doc-2', fieldKey: 'vendor_name', status: 'confirmed' },
+      ],
+    ];
+    mocks.fieldValueRowsCalls = [[]];
+
+    const summaries = await getBatchFieldSummaries(['doc-1', 'doc-2'], 'schema-1');
+
+    // Each table's mock queue only holds ONE response. If the implementation queried
+    // per-document instead of batching, doc-2's queries would consume the empty
+    // fallback (see nextFrom) and its field list would come back empty instead of
+    // containing fv-2.
+    expect(summaries.get('doc-1')).toEqual([{ fieldValueId: 'fv-1', fieldKey: 'vendor_name', label: 'Vendor Name', needsReview: true }]);
+    expect(summaries.get('doc-2')).toEqual([{ fieldValueId: 'fv-2', fieldKey: 'vendor_name', label: 'Vendor Name', needsReview: false }]);
   });
 });

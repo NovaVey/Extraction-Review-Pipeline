@@ -397,6 +397,23 @@ describe('undoField', () => {
     await expect(undoField('fv-1', 'alice')).rejects.toThrow(TableFieldUndoUnsupportedError);
     expect(updatesTo(fieldValues)).toHaveLength(0);
   });
+
+  // App.tsx's in-place Undo (reachable via the batch dropdown, not just the
+  // just-resolved toast) deliberately omits reviewSessionId when the current
+  // session isn't the one that resolved this field — see App.tsx's
+  // sessionResolvedRef. assertSessionExists/bumpSessionCounters both early-return
+  // on a falsy reviewSessionId, so this must succeed cleanly with zero
+  // review_sessions activity, not silently require one.
+  it('succeeds with reviewSessionId omitted, touching no review_sessions row at all', async () => {
+    mocks.fieldValuesResult = [{ id: 'fv-1', status: 'confirmed', normalizedValue: 'INV-1', finalValue: 'INV-1' }];
+
+    const result = await undoField('fv-1', 'alice');
+
+    expect(result).toEqual({ id: 'fv-1', status: 'needs_review' });
+    expect(updatesTo(fieldValues)[0].values).toMatchObject({ status: 'needs_review', finalValue: null, reviewedBy: null });
+    expect(insertsTo(corrections)).toHaveLength(1);
+    expect(updatesTo(reviewSessions)).toHaveLength(0);
+  });
 });
 
 describe('undoRow', () => {
@@ -457,6 +474,19 @@ describe('undoRow', () => {
 
     const sessionUpdate = updatesTo(reviewSessions)[0].values;
     expect(sqlDelta(sessionUpdate.itemsCorrected)).toBe(-1);
+  });
+
+  // Same reasoning as undoField's identical test above.
+  it('succeeds with reviewSessionId omitted, touching no review_sessions row at all', async () => {
+    const cells = { description: 'Widget', amount: '1.00' };
+    mocks.fieldValueRowsResult = [{ id: 'row-1', status: 'confirmed', cells, finalCells: cells }];
+    mocks.correctionsResult = [{ fieldValueRowId: 'row-1', columnKey: null, correctedAt: new Date('2026-08-01T00:00:00Z') }];
+
+    const result = await undoRow('row-1', 'alice');
+
+    expect(result).toEqual({ id: 'row-1', status: 'needs_review' });
+    expect(updatesTo(fieldValueRows)[0].values).toMatchObject({ status: 'needs_review', finalCells: null });
+    expect(updatesTo(reviewSessions)).toHaveLength(0);
   });
 });
 

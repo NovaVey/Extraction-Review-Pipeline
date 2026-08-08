@@ -60,6 +60,14 @@ export function fetchReviewItemForDocument(documentId: string): Promise<{ item: 
   return request(`/api/review/documents/${documentId}`);
 }
 
+// Like fetchReviewItemForDocument but a direct, unambiguous lookup by field_value id
+// (no candidate selection) — powers the batch dropdown's per-field rows and the
+// in-place Undo button's post-undo refresh. Never legitimately null; rejects with a
+// structured 404 (field_not_found / document_not_found).
+export function fetchReviewItemForField(fieldValueId: string): Promise<{ item: ReviewItem }> {
+  return request(`/api/review/fields/${fieldValueId}`);
+}
+
 export function fetchReviewQueueStats(): Promise<ReviewQueueStats> {
   return request('/api/review/stats');
 }
@@ -103,14 +111,20 @@ export function correctRow(
   });
 }
 
-export function undoField(fieldValueId: string, reviewer: string, reviewSessionId: string): Promise<ActionResult> {
+// reviewSessionId is optional: an in-place undo of a field reached via the batch
+// dropdown (rather than the just-resolved-this-session toast) may not have a
+// session to credit the revert to — see App.tsx's handleUndoResolvedField. Omitting
+// it here drops the key from the JSON body entirely (JSON.stringify skips
+// undefined-valued keys), matching the backend Zod schema's `.optional()`.
+export function undoField(fieldValueId: string, reviewer: string, reviewSessionId?: string): Promise<ActionResult> {
   return request(`/api/review/fields/${fieldValueId}/undo`, {
     method: 'POST',
     body: JSON.stringify({ reviewer, reviewSessionId }),
   });
 }
 
-export function undoRow(rowId: string, reviewer: string, reviewSessionId: string): Promise<ActionResult> {
+// Same optional reviewSessionId reasoning as undoField above.
+export function undoRow(rowId: string, reviewer: string, reviewSessionId?: string): Promise<ActionResult> {
   return request(`/api/review/rows/${rowId}/undo`, {
     method: 'POST',
     body: JSON.stringify({ reviewer, reviewSessionId }),

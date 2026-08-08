@@ -1,5 +1,5 @@
-import { useState, type KeyboardEvent } from 'react';
-import { Check } from 'lucide-react';
+import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
+import { Check, RotateCcw } from 'lucide-react';
 import type { ActionOutcome, ReviewItemColumn, ReviewItemRow } from '../../types';
 import { ResolutionStatusBadge } from './Badges';
 
@@ -7,6 +7,12 @@ interface RowTableProps {
   rows: ReviewItemRow[];
   onAcceptRow: (rowId: string) => Promise<ActionOutcome>;
   onCorrectRow: (rowId: string, columnKey: string, newValue: string) => Promise<ActionOutcome>;
+  // Reverts an already-resolved (confirmed) row back to needs_review — same
+  // "reachable any time, not just right after resolving it" reasoning as
+  // ReviewPane's onUndoField. Rows never reach 'corrected' as a distinct status
+  // (correctRow lands on 'confirmed' too — see actions.ts), so unlike ReviewPane
+  // there's only one resolved status to check for here.
+  onUndoRow: (rowId: string) => Promise<ActionOutcome>;
   locked?: boolean;
 }
 
@@ -19,7 +25,7 @@ interface RowTableProps {
 const ROW_ACTION_COL_PCT = 20;
 const FIRST_COL_PCT = 34;
 
-export function RowTable({ rows, onAcceptRow, onCorrectRow, locked = false }: RowTableProps) {
+export function RowTable({ rows, onAcceptRow, onCorrectRow, onUndoRow, locked = false }: RowTableProps) {
   if (rows.length === 0) return <p className="text-sm text-[#4B5563]">This table has no rows.</p>;
 
   // Columns are constant across every row of the same table field (per FieldSpec),
@@ -49,7 +55,15 @@ export function RowTable({ rows, onAcceptRow, onCorrectRow, locked = false }: Ro
         </thead>
         <tbody>
           {rows.map((row) => (
-            <RowTableRow key={row.id} row={row} columns={columns} onAcceptRow={onAcceptRow} onCorrectRow={onCorrectRow} locked={locked} />
+            <RowTableRow
+              key={row.id}
+              row={row}
+              columns={columns}
+              onAcceptRow={onAcceptRow}
+              onCorrectRow={onCorrectRow}
+              onUndoRow={onUndoRow}
+              locked={locked}
+            />
           ))}
         </tbody>
       </table>
@@ -62,22 +76,62 @@ interface RowTableRowProps {
   columns: ReviewItemColumn[];
   onAcceptRow: (rowId: string) => Promise<ActionOutcome>;
   onCorrectRow: (rowId: string, columnKey: string, newValue: string) => Promise<ActionOutcome>;
+  onUndoRow: (rowId: string) => Promise<ActionOutcome>;
   locked: boolean;
 }
 
-function RowTableRow({ row, columns, onAcceptRow, onCorrectRow, locked }: RowTableRowProps) {
+function RowTableRow({ row, columns, onAcceptRow, onCorrectRow, onUndoRow, locked }: RowTableRowProps) {
   // Prefer the reviewer-confirmed cells once the row is resolved, rather than the
   // (possibly stale, pre-correction) extracted cells — same reasoning as
   // ReviewPane's identical fix, for the same "jump to an already-resolved document"
-  // reason.
+  // reason. Memoized (not a plain const) so its REFERENCE only changes when the
+  // underlying row data actually does — needed so the reset effect below can
+  // legitimately depend on it directly, the same way ReviewPane's own reset effect
+  // depends on its (naturally reference-stable, because it's a primitive string)
+  // originalValue; a fresh object every render here would otherwise re-fire that
+  // effect (and wipe in-progress edits) on every keystroke.
   const displayCells = row.status === 'needs_review' ? row.cells : (row.finalCells ?? row.cells);
-  const originals = Object.fromEntries(columns.map((col) => [col.key, String(displayCells[col.key] ?? '')]));
+  const originals = useMemo(
+    () => Object.fromEntries(columns.map((col) => [col.key, String(displayCells[col.key] ?? '')])),
+    [columns, displayCells],
+  );
   const [values, setValues] = useState<Record<string, string>>(originals);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [undoPending, setUndoPending] = useState(false);
   const canAccept = row.status === 'needs_review';
+  // Rows only ever land on 'confirmed' (both accept-as-is and correctRow use that
+  // one status — see actions.ts's correctRow), so unlike ReviewPane's canUndo
+  // there's no 'corrected' variant to also check.
+  const canUndo = row.status === 'confirmed';
   const busy = pending || saved || locked;
+
+  // Every existing mutation path here (accept-as-is, correct) is self-consistent
+  // without this: the component always drives its own edits, and its local state
+  // (values/saved) already reflects the outcome by the time the parent's row prop
+  // catches up ~400ms later (runAction's debounced refetch) -- by then rendering has
+  // already moved on to canAccept-gated UI regardless of saved's value. Undo breaks
+  // that: it changes row.cells/finalCells "backward" while this component stays
+  // mounted with the same key (undoing a row doesn't change which FIELD is open, so
+  // unlike jumping fields via ReviewPane's own key, this component never remounts).
+  // Without this, a just-undone row would keep showing its stale pre-undo values
+  // once it becomes editable again.
+  useEffect(() => {
+    setValues(originals);
+    setError(null);
+    setSaved(false);
+    setUndoPending(false);
+  }, [row.id, originals]);
+
+  async function handleUndoRow() {
+    if (!canUndo || busy || undoPending) return;
+    setUndoPending(true);
+    setError(null);
+    const result = await onUndoRow(row.id);
+    setUndoPending(false);
+    if (!result.ok) setError(result.message);
+  }
 
   async function handleCellKeyDown(event: KeyboardEvent<HTMLInputElement>, columnKey: string) {
     if (event.key === 'Enter') {
@@ -157,7 +211,20 @@ function RowTableRow({ row, columns, onAcceptRow, onCorrectRow, locked }: RowTab
               )}
             </button>
           ) : (
-            <ResolutionStatusBadge status={row.status} />
+            <div className="flex flex-wrap items-center gap-1.5">
+              <ResolutionStatusBadge status={row.status} />
+              {canUndo && (
+                <button
+                  type="button"
+                  onClick={() => void handleUndoRow()}
+                  disabled={undoPending}
+                  aria-label={`Undo row ${row.rowIndex + 1}`}
+                  className="flex items-center gap-1 rounded-md border border-[#D1D5DB] bg-gray-50 px-1.5 py-0.5 text-xs font-medium text-[#4B5563] hover:bg-gray-100 disabled:opacity-60"
+                >
+                  <RotateCcw size={11} /> {undoPending ? '…' : 'Undo'}
+                </button>
+              )}
+            </div>
           )}
           {error && (
             <span role="alert" className="text-xs text-red-600">

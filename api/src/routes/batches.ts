@@ -5,7 +5,7 @@ import { db } from '../db/client.js';
 import { batches, documents } from '../db/schema.js';
 import { ingestDocument } from '../ingest/upload.js';
 import { isForeignKeyViolation } from '../lib/pgErrors.js';
-import { getDocumentDisplayNames, getNeedsReviewDocumentIds } from '../review/queue.js';
+import { getBatchFieldSummaries, getDocumentDisplayNames, getNeedsReviewDocumentIds } from '../review/queue.js';
 
 const CreateBatchBody = z.object({
   name: z.string().min(1),
@@ -43,17 +43,18 @@ export async function batchRoutes(app: FastifyInstance) {
     }
     const docs = await db.select().from(documents).where(eq(documents.batchId, id));
     // Trimmed to what the batch-documents sidebar actually needs (id, filename,
-    // ingest status, a live needsReview badge, and a real identifying displayName)
-    // rather than every raw column — nothing currently consumes this endpoint's
-    // previous full-row shape, so this is a deliberate contract for that one
-    // consumer, not a breaking change to anything real. Archived documents are
-    // excluded here the same way they're excluded from the review queue, stats, and
-    // default exports — a soft-deleted document shouldn't resurface in a batch
-    // summary either.
+    // ingest status, a live needsReview badge, a real identifying displayName, and
+    // per-field summaries for the dropdown's field-level rows) rather than every raw
+    // column — nothing currently consumes this endpoint's previous full-row shape,
+    // so this is a deliberate contract for that one consumer, not a breaking change
+    // to anything real. Archived documents are excluded here the same way they're
+    // excluded from the review queue, stats, and default exports — a soft-deleted
+    // document shouldn't resurface in a batch summary either.
     const activeDocIds = docs.filter((d) => !d.archivedAt).map((d) => d.id);
-    const [needsReviewDocumentIds, displayNames] = await Promise.all([
+    const [needsReviewDocumentIds, displayNames, fieldSummariesByDocument] = await Promise.all([
       getNeedsReviewDocumentIds(),
       getDocumentDisplayNames(activeDocIds, batch.schemaId),
+      getBatchFieldSummaries(activeDocIds, batch.schemaId),
     ]);
     const activeDocs = docs
       .filter((d) => !d.archivedAt)
@@ -63,6 +64,7 @@ export async function batchRoutes(app: FastifyInstance) {
         status: d.status,
         needsReview: needsReviewDocumentIds.has(d.id),
         displayName: displayNames.get(d.id) ?? null,
+        fields: fieldSummariesByDocument.get(d.id) ?? [],
       }));
     reply.send({ id: batch.id, name: batch.name, status: batch.status, documents: activeDocs });
   });

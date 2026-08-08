@@ -55,6 +55,7 @@ vi.mock('../src/review/queue.js', async (importOriginal) => {
     ...actual,
     getNextReviewItem: vi.fn(),
     getReviewItemForDocument: vi.fn(),
+    getReviewItemForField: vi.fn(),
     getReviewQueueStats: vi.fn(),
   };
 });
@@ -75,7 +76,9 @@ vi.mock('../src/review/actions.js', async (importOriginal) => {
 });
 
 const { buildApp } = await import('../src/app.js');
-const { getNextReviewItem, getReviewItemForDocument, getReviewQueueStats, NoReviewableFieldError } = await import('../src/review/queue.js');
+const { getNextReviewItem, getReviewItemForDocument, getReviewItemForField, getReviewQueueStats, NoReviewableFieldError } = await import(
+  '../src/review/queue.js'
+);
 const { DocumentNotFoundError } = await import('../src/documents/archive.js');
 const {
   acceptField,
@@ -97,6 +100,7 @@ beforeEach(() => {
   mocks.downloadObject.mockClear();
   vi.mocked(getNextReviewItem).mockReset();
   vi.mocked(getReviewItemForDocument).mockReset();
+  vi.mocked(getReviewItemForField).mockReset();
   vi.mocked(getReviewQueueStats).mockReset();
   vi.mocked(acceptField).mockReset();
   vi.mocked(correctField).mockReset();
@@ -222,6 +226,78 @@ describe('GET /review/documents/:id', () => {
     expect(res.statusCode).toBe(404);
     expect(res.json()).toEqual({ error: 'not_found' });
     expect(getReviewItemForDocument).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /review/fields/:id', () => {
+  const sampleFieldItem: ReviewItem = {
+    fieldValueId: '55555555-5555-5555-5555-555555555555',
+    documentId: '22222222-2222-2222-2222-222222222222',
+    documentFilename: 'invoice.pdf',
+    batchId: null,
+    fieldKey: 'due_date',
+    fieldType: 'date',
+    label: 'Due Date',
+    description: 'd',
+    rawValue: '2025-10-20',
+    normalizedValue: '2025-10-20',
+    finalValue: null,
+    confidence: '0.78',
+    confidenceParts: {},
+    validatorStatus: 'valid',
+    status: 'needs_review',
+    rows: null,
+    pages: [],
+  };
+
+  it('returns 200 with the item', async () => {
+    vi.mocked(getReviewItemForField).mockResolvedValue(sampleFieldItem);
+    const app = buildApp();
+
+    const res = await app.inject({ method: 'GET', url: '/review/fields/55555555-5555-5555-5555-555555555555' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ item: sampleFieldItem });
+  });
+
+  it('passes the :id param through to getReviewItemForField', async () => {
+    vi.mocked(getReviewItemForField).mockResolvedValue(sampleFieldItem);
+    const app = buildApp();
+
+    await app.inject({ method: 'GET', url: '/review/fields/55555555-5555-5555-5555-555555555555' });
+
+    expect(getReviewItemForField).toHaveBeenCalledWith('55555555-5555-5555-5555-555555555555');
+  });
+
+  it('returns 404 field_not_found when the field does not exist (or belongs to a superseded extraction)', async () => {
+    vi.mocked(getReviewItemForField).mockRejectedValue(new NotFoundError('not found'));
+    const app = buildApp();
+
+    const res = await app.inject({ method: 'GET', url: '/review/fields/55555555-5555-5555-5555-555555555555' });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual({ error: 'field_not_found' });
+  });
+
+  it('returns 404 document_not_found when the owning document is missing or archived', async () => {
+    vi.mocked(getReviewItemForField).mockRejectedValue(new DocumentNotFoundError('not found'));
+    const app = buildApp();
+
+    const res = await app.inject({ method: 'GET', url: '/review/fields/55555555-5555-5555-5555-555555555555' });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual({ error: 'document_not_found' });
+  });
+
+  // Same global-guard-takes-precedence shape as GET /review/documents/:id above.
+  it('rejects a malformed id with the global uuid guards 404 not_found code, without ever calling getReviewItemForField', async () => {
+    const app = buildApp();
+
+    const res = await app.inject({ method: 'GET', url: '/review/fields/not-a-uuid' });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual({ error: 'not_found' });
+    expect(getReviewItemForField).not.toHaveBeenCalled();
   });
 });
 

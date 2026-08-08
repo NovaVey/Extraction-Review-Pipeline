@@ -11,10 +11,19 @@ interface QueueSidebarProps {
   // section can be omitted entirely rather than flashing an empty list.
   batchDocuments: BatchDocumentSummary[] | null;
   currentDocumentId: string | null;
+  currentFieldValueId: string | null;
   onSelectDocument: (documentId: string) => void;
+  onSelectField: (fieldValueId: string) => void;
 }
 
-export function QueueSidebar({ stats, batchDocuments, currentDocumentId, onSelectDocument }: QueueSidebarProps) {
+export function QueueSidebar({
+  stats,
+  batchDocuments,
+  currentDocumentId,
+  currentFieldValueId,
+  onSelectDocument,
+  onSelectField,
+}: QueueSidebarProps) {
   const resolved = stats ? stats.totalItems - stats.needsReview : 0;
   const pct = stats && stats.totalItems > 0 ? Math.round((resolved / stats.totalItems) * 100) : null;
 
@@ -54,7 +63,13 @@ export function QueueSidebar({ stats, batchDocuments, currentDocumentId, onSelec
       )}
 
       {batchDocuments !== null && batchDocuments.length > 0 && (
-        <BatchDocumentsDropdown documents={batchDocuments} currentDocumentId={currentDocumentId} onSelectDocument={onSelectDocument} />
+        <BatchDocumentsDropdown
+          documents={batchDocuments}
+          currentDocumentId={currentDocumentId}
+          currentFieldValueId={currentFieldValueId}
+          onSelectDocument={onSelectDocument}
+          onSelectField={onSelectField}
+        />
       )}
     </aside>
   );
@@ -89,8 +104,11 @@ const TRAILING_NUMBER_RE = /(\d+)(?=\.[^.]+$)/;
 
 // doc.displayName (a real vendor/invoice number, when the backend found one) is
 // preferred; this is only the fallback path for documents with no identifying data
-// extracted yet, so a same-batch collision is a real, expected possibility here,
-// not an edge case.
+// extracted yet, so a same-batch collision is a real, expected possibility here, not
+// an edge case. Only used for the document GROUP HEADER label — field rows
+// underneath are labeled with their own field.label, which is always unique within
+// one document's own schema (a schema never declares two fields with the same key),
+// so no equivalent disambiguation is needed at that level.
 function disambiguatedLabels(documents: BatchDocumentSummary[]): Map<string, string> {
   const baseLabelOf = new Map(documents.map((doc) => [doc.id, doc.displayName ?? humanizeFilename(doc.filename)]));
   const counts = new Map<string, number>();
@@ -112,18 +130,30 @@ function disambiguatedLabels(documents: BatchDocumentSummary[]): Map<string, str
   return labels;
 }
 
+// Two-level dropdown: each document is a clickable group header (jumps to its
+// current-best item, same as before this change) with its own reviewable fields
+// listed underneath as independently clickable rows (jump to that EXACT field,
+// resolved or not). Previously one entry per document, which undercounted against
+// Queue Progress's per-FIELD total whenever a document had more than one field
+// needing attention -- see App.tsx's handleSelectDocument/handleSelectField for why
+// both jump actions are kept side by side rather than one replacing the other.
 function BatchDocumentsDropdown({
   documents,
   currentDocumentId,
+  currentFieldValueId,
   onSelectDocument,
+  onSelectField,
 }: {
   documents: BatchDocumentSummary[];
   currentDocumentId: string | null;
+  currentFieldValueId: string | null;
   onSelectDocument: (documentId: string) => void;
+  onSelectField: (fieldValueId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const needsReviewCount = documents.filter((d) => d.needsReview).length;
+  const totalFields = documents.reduce((n, d) => n + d.fields.length, 0);
+  const needsReviewFieldCount = documents.reduce((n, d) => n + d.fields.filter((f) => f.needsReview).length, 0);
   const labels = disambiguatedLabels(documents);
 
   // Close on outside click -- no existing dropdown/popover pattern anywhere in this
@@ -146,9 +176,14 @@ function BatchDocumentsDropdown({
     setOpen(false);
   }
 
-  function handleSelect(documentId: string) {
+  function handleSelectDocumentHeader(documentId: string) {
     setOpen(false);
     onSelectDocument(documentId);
+  }
+
+  function handleSelectFieldRow(fieldValueId: string) {
+    setOpen(false);
+    onSelectField(fieldValueId);
   }
 
   return (
@@ -163,33 +198,54 @@ function BatchDocumentsDropdown({
         <span className="flex flex-col">
           <span className="text-xs font-medium uppercase tracking-wide text-[#4B5563]">This Batch</span>
           <span className="text-xs text-[#4B5563]">
-            {documents.length} document{documents.length === 1 ? '' : 's'}
-            {needsReviewCount > 0 && `, ${needsReviewCount} need review`}
+            {totalFields} field{totalFields === 1 ? '' : 's'}
+            {needsReviewFieldCount > 0 && `, ${needsReviewFieldCount} need review`}
           </span>
         </span>
         <ChevronDown size={14} className={`shrink-0 text-[#4B5563] transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
-        <div role="menu" aria-label="Documents in this batch" className="absolute z-30 mt-1 w-full rounded-md border border-[#E5E7EB] bg-white py-1 shadow-lg">
+        // max-h-80/overflow-y-auto: unlike the old one-row-per-document list, this
+        // can now hold several rows per document -- a real schema has up to 9 fields
+        // (scripts/fieldSpecs.ts) -- so an unbounded-height panel is a real risk here
+        // in a way it wasn't before.
+        <div
+          role="menu"
+          aria-label="Fields in this batch"
+          className="absolute z-30 mt-1 max-h-80 w-full overflow-y-auto rounded-md border border-[#E5E7EB] bg-white py-1 shadow-lg"
+        >
           {documents.map((doc) => (
-            <button
-              key={doc.id}
-              type="button"
-              role="menuitem"
-              title={doc.filename}
-              aria-current={doc.id === currentDocumentId ? 'true' : undefined}
-              onClick={() => handleSelect(doc.id)}
-              className={`flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs ${
-                doc.id === currentDocumentId ? 'bg-[#F3F4F6] font-medium text-[#101114]' : 'text-[#4B5563] hover:bg-gray-50'
-              }`}
-            >
-              <span
-                aria-hidden="true"
-                className={`h-1.5 w-1.5 shrink-0 rounded-full ${doc.needsReview ? 'bg-amber-500' : 'bg-green-500'}`}
-              />
-              <span className="truncate">{labels.get(doc.id)}</span>
-            </button>
+            <div key={doc.id} role="group" aria-label={labels.get(doc.id)}>
+              <button
+                type="button"
+                role="menuitem"
+                title={doc.filename}
+                aria-current={doc.id === currentDocumentId ? 'true' : undefined}
+                onClick={() => handleSelectDocumentHeader(doc.id)}
+                className={`flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs font-medium ${
+                  doc.id === currentDocumentId ? 'bg-[#F3F4F6] text-[#101114]' : 'text-[#101114] hover:bg-gray-50'
+                }`}
+              >
+                <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${doc.needsReview ? 'bg-amber-500' : 'bg-green-500'}`} />
+                <span className="truncate">{labels.get(doc.id)}</span>
+              </button>
+              {doc.fields.map((field) => (
+                <button
+                  key={field.fieldValueId}
+                  type="button"
+                  role="menuitem"
+                  aria-current={field.fieldValueId === currentFieldValueId ? 'true' : undefined}
+                  onClick={() => handleSelectFieldRow(field.fieldValueId)}
+                  className={`flex w-full items-center gap-2 py-1 pl-6 pr-2 text-left text-xs ${
+                    field.fieldValueId === currentFieldValueId ? 'bg-[#F3F4F6] font-medium text-[#101114]' : 'text-[#4B5563] hover:bg-gray-50'
+                  }`}
+                >
+                  <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${field.needsReview ? 'bg-amber-500' : 'bg-green-500'}`} />
+                  <span className="truncate">{field.label}</span>
+                </button>
+              ))}
+            </div>
           ))}
         </div>
       )}
