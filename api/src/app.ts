@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import multipart from '@fastify/multipart';
 import { registerAuthGate } from './lib/auth.js';
+import { registerUuidParamGuard } from './lib/uuidParamGuard.js';
 import { healthRoutes } from './routes/health.js';
 import { schemaRoutes } from './routes/schemas.js';
 import { batchRoutes } from './routes/batches.js';
@@ -19,6 +20,7 @@ export function buildApp() {
   const app = Fastify({ logger: true });
   app.register(multipart, { limits: { fileSize: MAX_FILE_SIZE_BYTES } });
   registerAuthGate(app);
+  registerUuidParamGuard(app);
   app.register(healthRoutes);
   app.register(schemaRoutes);
   app.register(batchRoutes);

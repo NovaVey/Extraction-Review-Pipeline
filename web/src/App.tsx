@@ -67,6 +67,14 @@ function App() {
   // values, silently discarding an in-progress edit in another row's input.
   const justResolvedFieldValueIdRef = useRef<string | null>(null);
   const refetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Bumped at the START of every refetchQueue() call, before awaiting the network
+  // round trip — mirrors actionSeqRef below, same reasoning. refetchQueue can now be
+  // triggered from more than one place close together (runAction's own debounced
+  // 400ms timer, plus handleUndo and runAction's not_needs_review noop branch both
+  // calling it directly) and those calls can resolve out of order; without this, an
+  // earlier-started-but-slower fetch resolving LAST would silently overwrite a
+  // newer fetch's already-current queue state with stale data.
+  const queueFetchSeqRef = useRef(0);
   // Whether the "change reviewer" confirmation dialog is open. A native
   // window.confirm() was tried first and rejected by adversarial review: Enter
   // both activates the "change" button *and* is bound to a native confirm
@@ -121,6 +129,7 @@ function App() {
   }, [reviewSessionId]);
 
   const refetchQueue = useCallback(() => {
+    const mySeq = ++queueFetchSeqRef.current;
     // Only blank the screen for a true first load (or after an error) — once
     // something is already showing, keep it on screen (marked "transitioning")
     // while the next item loads instead of unmounting the whole two-pane layout.
@@ -133,6 +142,10 @@ function App() {
     });
     fetchNextReviewItem()
       .then(({ item }) => {
+        // A newer refetchQueue() call has already started (and possibly already
+        // resolved) since this one did — its result is the current truth, so this
+        // now-stale response must not overwrite it.
+        if (queueFetchSeqRef.current !== mySeq) return;
         setQueueState({ status: 'loaded', item });
         setIsTransitioning(false);
         justResolvedFieldValueIdRef.current = null;
@@ -147,6 +160,7 @@ function App() {
         setGloballyAcceptedId(null);
       })
       .catch(() => {
+        if (queueFetchSeqRef.current !== mySeq) return;
         setQueueState({ status: 'error', message: 'Could not reach the review queue.' });
         setIsTransitioning(false);
       });
@@ -309,8 +323,19 @@ function App() {
       // exactly this handler's trigger condition) — without this check a second
       // stray Enter re-fires accept on the same, already-resolved field.
       if (queueState.item.fieldValueId === justResolvedFieldValueIdRef.current) return;
-      setGloballyAcceptedId(queueState.item.fieldValueId);
-      void handleAcceptField(queueState.item.fieldValueId);
+      const fieldValueId = queueState.item.fieldValueId;
+      setGloballyAcceptedId(fieldValueId);
+      // Set optimistically above (before the network round trip resolves) so the
+      // "Saved" confirmation shows immediately rather than waiting on the request —
+      // but nothing previously reset it if that request actually failed (a network
+      // error, an expired session). The field was left showing a disabled "Saved"
+      // state forever, with no error message and no way to retry short of a full
+      // page reload. A successful (or noop) outcome needs no action here: runAction
+      // already schedules the next refetchQueue, which naturally moves past this
+      // field via refetchQueue's own globallyAcceptedId reset.
+      void handleAcceptField(fieldValueId).then((outcome) => {
+        if (!outcome.ok) setGloballyAcceptedId((current) => (current === fieldValueId ? null : current));
+      });
     }
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
@@ -371,6 +396,15 @@ function App() {
       else await undoRow(action.id, reviewerName, reviewSessionId);
       setItemsReviewed((n) => Math.max(0, n - action.deltaReviewed));
       setItemsCorrected((n) => Math.max(0, n - action.deltaCorrected));
+      // A prior runAction() may have scheduled its own debounced refetch (see
+      // runAction's 400ms setTimeout) that hasn't fired yet — this undo's refetch
+      // already supersedes it (queueFetchSeqRef resolves any actual ordering race
+      // between the two), but there's no reason to let a redundant extra fetch fire
+      // a moment later too.
+      if (refetchTimeoutRef.current !== null) {
+        clearTimeout(refetchTimeoutRef.current);
+        refetchTimeoutRef.current = null;
+      }
       refetchQueue();
       refetchStats();
     } catch {
@@ -404,6 +438,19 @@ function App() {
       clearTimeout(refetchTimeoutRef.current);
       refetchTimeoutRef.current = null;
     }
+    // Same reasoning as handleConfirmChangeReviewer: a pending Undo toast isn't
+    // tagged with which document it belongs to, and the common sequence — accept a
+    // field, then remove the very document it's on — makes it likely this toast IS
+    // for the document that just got archived. Clicking Undo on it would revert a
+    // field inside a now-permanently-hidden document (no unarchive control exists in
+    // this UI), silently decrementing session counters for a change no one can ever
+    // see or re-review. Clearing unconditionally (rather than trying to track which
+    // document a toast belongs to) is the same safe default already used there.
+    if (lastActionTimeoutRef.current !== null) {
+      clearTimeout(lastActionTimeoutRef.current);
+      lastActionTimeoutRef.current = null;
+    }
+    setLastAction(null);
     refetchQueue();
     refetchStats();
   }

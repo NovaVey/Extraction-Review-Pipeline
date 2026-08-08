@@ -84,51 +84,77 @@ beforeEach(() => {
 
 describe('POST /batches/:id/export', () => {
   it('builds, uploads, and marks the export completed on success', async () => {
-    mocks.insertReturning = [{ id: 'exp-1', batchId: 'batch-1', target: 'csv', status: 'processing', idempotencyKey: 'key-1' }];
-    mocks.updateReturning = [{ id: 'exp-1', status: 'completed', rowCount: 3, filePath: 'exports/batch-1/exp-1.csv' }];
+    mocks.insertReturning = [{ id: '44444444-4444-4444-4444-444444444444', batchId: '22222222-2222-2222-2222-222222222222', target: 'csv', status: 'processing', idempotencyKey: 'key-1' }];
+    mocks.updateReturning = [{ id: '44444444-4444-4444-4444-444444444444', status: 'completed', rowCount: 3, filePath: 'exports/batch-1/exp-1.csv' }];
     vi.mocked(buildBatchExportCsv).mockResolvedValue({ csv: 'a,b\r\n1,2\r\n', rowCount: 3, skippedDocumentCount: 0 });
     const app = buildApp();
 
     const res = await app.inject({
       method: 'POST',
-      url: '/batches/batch-1/export',
+      url: '/batches/22222222-2222-2222-2222-222222222222/export',
       payload: { target: 'csv', idempotencyKey: 'key-1' },
     });
 
     expect(res.statusCode).toBe(201);
-    expect(res.json()).toMatchObject({ id: 'exp-1', status: 'completed', rowCount: 3, skippedDocumentCount: 0 });
-    expect(mocks.uploadObject).toHaveBeenCalledWith('exports/batch-1/exp-1.csv', Buffer.from('a,b\r\n1,2\r\n', 'utf8'), 'text/csv');
-    expect(buildBatchExportCsv).toHaveBeenCalledWith('batch-1', false);
+    expect(res.json()).toMatchObject({ id: '44444444-4444-4444-4444-444444444444', status: 'completed', rowCount: 3, skippedDocumentCount: 0 });
+    expect(mocks.uploadObject).toHaveBeenCalledWith(
+      'exports/22222222-2222-2222-2222-222222222222/44444444-4444-4444-4444-444444444444.csv',
+      Buffer.from('a,b\r\n1,2\r\n', 'utf8'),
+      'text/csv',
+    );
+    expect(buildBatchExportCsv).toHaveBeenCalledWith('22222222-2222-2222-2222-222222222222', false);
   });
 
   it('passes includeUnresolved through when set', async () => {
-    mocks.insertReturning = [{ id: 'exp-1' }];
-    mocks.updateReturning = [{ id: 'exp-1', status: 'completed' }];
+    mocks.insertReturning = [{ id: '44444444-4444-4444-4444-444444444444' }];
+    mocks.updateReturning = [{ id: '44444444-4444-4444-4444-444444444444', status: 'completed' }];
     vi.mocked(buildBatchExportCsv).mockResolvedValue({ csv: 'a\r\n', rowCount: 0, skippedDocumentCount: 0 });
     const app = buildApp();
 
     await app.inject({
       method: 'POST',
-      url: '/batches/batch-1/export',
+      url: '/batches/22222222-2222-2222-2222-222222222222/export',
       payload: { target: 'csv', idempotencyKey: 'key-1', includeUnresolved: true },
     });
 
-    expect(buildBatchExportCsv).toHaveBeenCalledWith('batch-1', true);
+    expect(buildBatchExportCsv).toHaveBeenCalledWith('22222222-2222-2222-2222-222222222222', true);
   });
 
-  it('returns the existing export (200, not an error) when the idempotency key was already used', async () => {
+  it('returns the existing export (200, not an error) when the idempotency key was already used for the SAME batch', async () => {
     mocks.insertShouldThrowCode = '23505'; // unique_violation
-    mocks.selectResult = [{ id: 'exp-existing', status: 'completed', idempotencyKey: 'key-1' }];
+    mocks.selectResult = [{ id: '55555555-5555-5555-5555-555555555555', batchId: '22222222-2222-2222-2222-222222222222', status: 'completed', idempotencyKey: 'key-1' }];
     const app = buildApp();
 
     const res = await app.inject({
       method: 'POST',
-      url: '/batches/batch-1/export',
+      url: '/batches/22222222-2222-2222-2222-222222222222/export',
       payload: { target: 'csv', idempotencyKey: 'key-1' },
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ id: 'exp-existing', status: 'completed', idempotencyKey: 'key-1' });
+    expect(res.json()).toEqual({ id: '55555555-5555-5555-5555-555555555555', batchId: '22222222-2222-2222-2222-222222222222', status: 'completed', idempotencyKey: 'key-1' });
+    expect(buildBatchExportCsv).not.toHaveBeenCalled();
+  });
+
+  // Regression: the unique constraint is on idempotencyKey alone, not scoped to a
+  // batch — a key collision across two different batches must not silently hand
+  // back the wrong batch's export.
+  it('returns 409 idempotency_key_conflict when the key was already used for a DIFFERENT batch', async () => {
+    mocks.insertShouldThrowCode = '23505'; // unique_violation
+    mocks.selectResult = [{ id: '55555555-5555-5555-5555-555555555555', batchId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', status: 'completed', idempotencyKey: 'key-1' }];
+    const app = buildApp();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/batches/33333333-3333-3333-3333-333333333333/export',
+      payload: { target: 'csv', idempotencyKey: 'key-1' },
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toEqual({
+      error: 'idempotency_key_conflict',
+      details: 'idempotencyKey key-1 was already used for a different batch',
+    });
     expect(buildBatchExportCsv).not.toHaveBeenCalled();
   });
 
@@ -138,7 +164,7 @@ describe('POST /batches/:id/export', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/batches/missing-batch/export',
+      url: '/batches/99999999-9999-9999-9999-999999999999/export',
       payload: { target: 'csv', idempotencyKey: 'key-1' },
     });
 
@@ -147,13 +173,13 @@ describe('POST /batches/:id/export', () => {
   });
 
   it('marks the export failed and returns 404 when buildBatchExportCsv reports the batch missing', async () => {
-    mocks.insertReturning = [{ id: 'exp-1' }];
+    mocks.insertReturning = [{ id: '44444444-4444-4444-4444-444444444444' }];
     vi.mocked(buildBatchExportCsv).mockRejectedValue(new NotFoundError('gone'));
     const app = buildApp();
 
     const res = await app.inject({
       method: 'POST',
-      url: '/batches/batch-1/export',
+      url: '/batches/22222222-2222-2222-2222-222222222222/export',
       payload: { target: 'csv', idempotencyKey: 'key-1' },
     });
 
@@ -165,7 +191,7 @@ describe('POST /batches/:id/export', () => {
     const app = buildApp();
     const res = await app.inject({
       method: 'POST',
-      url: '/batches/batch-1/export',
+      url: '/batches/22222222-2222-2222-2222-222222222222/export',
       payload: { target: 'xml', idempotencyKey: 'key-1' },
     });
 
@@ -179,29 +205,29 @@ describe('GET /exports/:id', () => {
     mocks.selectResult = [];
     const app = buildApp();
 
-    const res = await app.inject({ method: 'GET', url: '/exports/missing' });
+    const res = await app.inject({ method: 'GET', url: '/exports/99999999-9999-9999-9999-999999999999' });
 
     expect(res.statusCode).toBe(404);
     expect(res.json()).toEqual({ error: 'export_not_found' });
   });
 
   it('returns the export row', async () => {
-    mocks.selectResult = [{ id: 'exp-1', status: 'completed', rowCount: 5 }];
+    mocks.selectResult = [{ id: '44444444-4444-4444-4444-444444444444', status: 'completed', rowCount: 5 }];
     const app = buildApp();
 
-    const res = await app.inject({ method: 'GET', url: '/exports/exp-1' });
+    const res = await app.inject({ method: 'GET', url: '/exports/44444444-4444-4444-4444-444444444444' });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toMatchObject({ id: 'exp-1', status: 'completed', rowCount: 5 });
+    expect(res.json()).toMatchObject({ id: '44444444-4444-4444-4444-444444444444', status: 'completed', rowCount: 5 });
   });
 });
 
 describe('GET /exports/:id/download', () => {
   it('returns 400 export_not_ready when the export has not completed', async () => {
-    mocks.selectResult = [{ id: 'exp-1', status: 'processing', filePath: null }];
+    mocks.selectResult = [{ id: '44444444-4444-4444-4444-444444444444', status: 'processing', filePath: null }];
     const app = buildApp();
 
-    const res = await app.inject({ method: 'GET', url: '/exports/exp-1/download' });
+    const res = await app.inject({ method: 'GET', url: '/exports/44444444-4444-4444-4444-444444444444/download' });
 
     expect(res.statusCode).toBe(400);
     expect(res.json().error).toBe('export_not_ready');
@@ -209,14 +235,14 @@ describe('GET /exports/:id/download', () => {
   });
 
   it('streams the CSV bytes as text/csv with a content-disposition header', async () => {
-    mocks.selectResult = [{ id: 'exp-1', status: 'completed', filePath: 'exports/batch-1/exp-1.csv' }];
+    mocks.selectResult = [{ id: '44444444-4444-4444-4444-444444444444', status: 'completed', filePath: 'exports/batch-1/exp-1.csv' }];
     const app = buildApp();
 
-    const res = await app.inject({ method: 'GET', url: '/exports/exp-1/download' });
+    const res = await app.inject({ method: 'GET', url: '/exports/44444444-4444-4444-4444-444444444444/download' });
 
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toBe('text/csv');
-    expect(res.headers['content-disposition']).toContain('export-exp-1.csv');
+    expect(res.headers['content-disposition']).toContain('export-44444444-4444-4444-4444-444444444444.csv');
     expect(res.rawPayload.toString()).toBe('csv-bytes');
     expect(mocks.downloadObject).toHaveBeenCalledWith('exports/batch-1/exp-1.csv');
   });

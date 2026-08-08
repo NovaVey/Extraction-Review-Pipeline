@@ -64,28 +64,28 @@ describe('GET /documents/:id/extraction', () => {
     mocks.mockDocument = null;
 
     const app = buildApp();
-    const res = await app.inject({ method: 'GET', url: '/documents/doc-missing/extraction' });
+    const res = await app.inject({ method: 'GET', url: '/documents/88888888-8888-8888-8888-888888888888/extraction' });
 
     expect(res.statusCode).toBe(404);
     expect(res.json()).toEqual({ error: 'document_not_found' });
   });
 
   it('returns 404 no_extraction_found when the document exists but has no extraction', async () => {
-    mocks.mockDocument = { id: 'doc-1' };
+    mocks.mockDocument = { id: '11111111-1111-1111-1111-111111111111' };
     mocks.mockExtraction = null;
 
     const app = buildApp();
-    const res = await app.inject({ method: 'GET', url: '/documents/doc-1/extraction' });
+    const res = await app.inject({ method: 'GET', url: '/documents/11111111-1111-1111-1111-111111111111/extraction' });
 
     expect(res.statusCode).toBe(404);
     expect(res.json()).toEqual({ error: 'no_extraction_found' });
   });
 
   it('returns 200 with extraction, scalar field, and table field + rows in the expected shape', async () => {
-    mocks.mockDocument = { id: 'doc-1' };
+    mocks.mockDocument = { id: '11111111-1111-1111-1111-111111111111' };
     mocks.mockExtraction = {
       id: 'extraction-1',
-      documentId: 'doc-1',
+      documentId: '11111111-1111-1111-1111-111111111111',
       model: 'claude-sonnet-5',
       temperature: '0.8',
       outputMode: 'json_schema',
@@ -144,11 +144,11 @@ describe('GET /documents/:id/extraction', () => {
     ];
 
     const app = buildApp();
-    const res = await app.inject({ method: 'GET', url: '/documents/doc-1/extraction' });
+    const res = await app.inject({ method: 'GET', url: '/documents/11111111-1111-1111-1111-111111111111/extraction' });
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({
-      documentId: 'doc-1',
+      documentId: '11111111-1111-1111-1111-111111111111',
       extraction: {
         id: 'extraction-1',
         model: 'claude-sonnet-5',
@@ -196,21 +196,21 @@ describe('GET /documents/:id/extraction', () => {
 
 describe('POST /documents/:id/archive', () => {
   it('round trips a successful archive', async () => {
-    vi.mocked(archiveDocument).mockResolvedValue({ id: 'doc-1', status: 'archived' });
+    vi.mocked(archiveDocument).mockResolvedValue({ id: '11111111-1111-1111-1111-111111111111', status: 'archived' });
     const app = buildApp();
 
-    const res = await app.inject({ method: 'POST', url: '/documents/doc-1/archive', payload: { reviewer: 'alice' } });
+    const res = await app.inject({ method: 'POST', url: '/documents/11111111-1111-1111-1111-111111111111/archive', payload: { reviewer: 'alice' } });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ id: 'doc-1', status: 'archived' });
-    expect(archiveDocument).toHaveBeenCalledWith('doc-1', 'alice');
+    expect(res.json()).toEqual({ id: '11111111-1111-1111-1111-111111111111', status: 'archived' });
+    expect(archiveDocument).toHaveBeenCalledWith('11111111-1111-1111-1111-111111111111', 'alice');
   });
 
   it('returns 404 document_not_found when the document does not exist', async () => {
     vi.mocked(archiveDocument).mockRejectedValue(new DocumentNotFoundError('no such document'));
     const app = buildApp();
 
-    const res = await app.inject({ method: 'POST', url: '/documents/missing/archive', payload: { reviewer: 'alice' } });
+    const res = await app.inject({ method: 'POST', url: '/documents/99999999-9999-9999-9999-999999999999/archive', payload: { reviewer: 'alice' } });
 
     expect(res.statusCode).toBe(404);
     expect(res.json()).toEqual({ error: 'document_not_found' });
@@ -218,7 +218,7 @@ describe('POST /documents/:id/archive', () => {
 
   it('returns 400 invalid_body when reviewer is missing', async () => {
     const app = buildApp();
-    const res = await app.inject({ method: 'POST', url: '/documents/doc-1/archive', payload: {} });
+    const res = await app.inject({ method: 'POST', url: '/documents/11111111-1111-1111-1111-111111111111/archive', payload: {} });
 
     expect(res.statusCode).toBe(400);
     expect(res.json().error).toBe('invalid_body');
@@ -228,20 +228,20 @@ describe('POST /documents/:id/archive', () => {
 
 describe('POST /documents/:id/unarchive', () => {
   it('round trips a successful unarchive', async () => {
-    vi.mocked(unarchiveDocument).mockResolvedValue({ id: 'doc-1', status: 'active' });
+    vi.mocked(unarchiveDocument).mockResolvedValue({ id: '11111111-1111-1111-1111-111111111111', status: 'active' });
     const app = buildApp();
 
-    const res = await app.inject({ method: 'POST', url: '/documents/doc-1/unarchive' });
+    const res = await app.inject({ method: 'POST', url: '/documents/11111111-1111-1111-1111-111111111111/unarchive' });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ id: 'doc-1', status: 'active' });
+    expect(res.json()).toEqual({ id: '11111111-1111-1111-1111-111111111111', status: 'active' });
   });
 
   it('returns 404 document_not_found when the document does not exist', async () => {
     vi.mocked(unarchiveDocument).mockRejectedValue(new DocumentNotFoundError('no such document'));
     const app = buildApp();
 
-    const res = await app.inject({ method: 'POST', url: '/documents/missing/unarchive' });
+    const res = await app.inject({ method: 'POST', url: '/documents/99999999-9999-9999-9999-999999999999/unarchive' });
 
     expect(res.statusCode).toBe(404);
     expect(res.json()).toEqual({ error: 'document_not_found' });

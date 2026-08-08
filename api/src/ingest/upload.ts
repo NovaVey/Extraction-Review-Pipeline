@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { documents, pages } from '../db/schema.js';
 import { uploadObject } from '../lib/storage.js';
+import { isUniqueViolation } from '../lib/pgErrors.js';
 import { renderPdfPages } from './pageRender.js';
 import { extractPageTexts } from './textLayer.js';
 import { ocrPageImage } from './ocr.js';
@@ -36,12 +37,22 @@ export async function ingestDocument(params: IngestDocumentParams): Promise<Inge
   const sha256 = sha256Hex(params.buffer);
 
   const [existing] = await db
-    .select({ id: documents.id })
+    .select({ id: documents.id, status: documents.status })
     .from(documents)
     .where(and(eq(documents.batchId, params.batchId), eq(documents.sha256, sha256)))
     .limit(1);
-  if (existing) {
+  if (existing && existing.status !== 'failed') {
     return { documentId: existing.id, deduped: true };
+  }
+  if (existing) {
+    // existing.status === 'failed': a previous ingest of these exact bytes failed
+    // partway through (see the catch block below) — that's not a successful
+    // dedupe hit, it's a document that was never actually usable. Retry cleanly
+    // instead of reporting false success. Deleting the old row first (rather than
+    // reusing its id) cascades to any partial `pages` rows it left behind
+    // (pages.documentId has onDelete: 'cascade' — see db/schema.ts), so the insert
+    // below starts from a clean slate rather than colliding with them.
+    await db.delete(documents).where(eq(documents.id, existing.id));
   }
 
   const storagePath = originalPath(params.batchId, sha256);
@@ -54,21 +65,42 @@ export async function ingestDocument(params: IngestDocumentParams): Promise<Inge
   const hasTextLayer = pageTexts.every((p) => p.hasTextLayer);
   const ocrRequired = pageTexts.some((p) => !p.hasTextLayer);
 
-  const [{ id: documentId }] = await db
-    .insert(documents)
-    .values({
-      batchId: params.batchId,
-      filename: params.filename,
-      mimeType: params.mimeType,
-      storagePath,
-      sha256,
-      pageCount: renderedPages.length,
-      hasTextLayer,
-      ocrRequired,
-      inDevSubset: params.inDevSubset ?? false,
-      status: 'uploaded',
-    })
-    .returning({ id: documents.id });
+  let documentId: string;
+  try {
+    const [inserted] = await db
+      .insert(documents)
+      .values({
+        batchId: params.batchId,
+        filename: params.filename,
+        mimeType: params.mimeType,
+        storagePath,
+        sha256,
+        pageCount: renderedPages.length,
+        hasTextLayer,
+        ocrRequired,
+        inDevSubset: params.inDevSubset ?? false,
+        status: 'uploaded',
+      })
+      .returning({ id: documents.id });
+    documentId = inserted.id;
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      // Two concurrent uploads of the identical bytes to the same batch (a client
+      // retry fired before the first request finished — plausible since a large
+      // multi-page OCR ingest can take many seconds) both pass the dedupe check
+      // above before either has inserted. The unique index on (batch_id, sha256)
+      // is the actual source of truth for that race, not the earlier SELECT — the
+      // loser reports a normal dedupe hit against whichever request won, same as
+      // if it had simply arrived a moment later.
+      const [winner] = await db
+        .select({ id: documents.id })
+        .from(documents)
+        .where(and(eq(documents.batchId, params.batchId), eq(documents.sha256, sha256)))
+        .limit(1);
+      if (winner) return { documentId: winner.id, deduped: true };
+    }
+    throw err;
+  }
 
   try {
     for (const rendered of renderedPages) {

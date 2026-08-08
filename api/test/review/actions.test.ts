@@ -12,8 +12,15 @@ const mocks = vi.hoisted(() => ({
   fieldValuesResult: [] as unknown[],
   fieldValueRowsResult: [] as unknown[],
   reviewSessionsResult: [] as unknown[],
+  correctionsResult: [] as unknown[],
   insertReturning: [] as unknown[],
   updateReturning: [] as unknown[],
+  // Per-call overrides for update(...).returning(), consumed in FIFO order — lets a
+  // test give the Nth update() call in a single action (e.g. acceptField's per-row
+  // loop) its own distinct "who actually got updated" result, which the single
+  // shared `updateReturning` value can't express. Falls back to `updateReturning`
+  // once exhausted, so tests that only ever expect one update() call are unaffected.
+  updateReturningQueue: [] as unknown[][],
   insertCalls: [] as Array<{ table: unknown; values: Record<string, unknown> }>,
   updateCalls: [] as Array<{ table: unknown; values: Record<string, unknown> }>,
 }));
@@ -21,6 +28,7 @@ const mocks = vi.hoisted(() => ({
 function chain(resolveValue: unknown) {
   const obj: Record<string, unknown> = {};
   obj.where = () => obj;
+  obj.orderBy = () => obj;
   obj.limit = () => Promise.resolve(resolveValue);
   obj.then = (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
     Promise.resolve(resolveValue).then(resolve, reject);
@@ -34,6 +42,7 @@ vi.mock('../../src/db/client.js', () => ({
         if (table === fieldValues) return chain(mocks.fieldValuesResult);
         if (table === fieldValueRows) return chain(mocks.fieldValueRowsResult);
         if (table === reviewSessions) return chain(mocks.reviewSessionsResult);
+        if (table === corrections) return chain(mocks.correctionsResult);
         throw new Error('unexpected table in mock select().from()');
       },
     })),
@@ -43,7 +52,8 @@ vi.mock('../../src/db/client.js', () => ({
         return {
           where: () => ({
             then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => Promise.resolve(undefined).then(resolve, reject),
-            returning: () => Promise.resolve(mocks.updateReturning),
+            returning: () =>
+              Promise.resolve(mocks.updateReturningQueue.length > 0 ? mocks.updateReturningQueue.shift() : mocks.updateReturning),
           }),
         };
       },
@@ -90,8 +100,10 @@ beforeEach(() => {
   mocks.fieldValuesResult = [];
   mocks.fieldValueRowsResult = [];
   mocks.reviewSessionsResult = [];
+  mocks.correctionsResult = [];
   mocks.insertReturning = [];
   mocks.updateReturning = [];
+  mocks.updateReturningQueue = [];
   mocks.insertCalls.length = 0;
   mocks.updateCalls.length = 0;
 });
@@ -146,6 +158,9 @@ describe('acceptField', () => {
       { id: 'row-2', cells: { description: 'Gadget', amount: '2.00' }, status: 'needs_review' },
     ];
     mocks.reviewSessionsResult = [{ id: 'session-1', itemsReviewed: 0, itemsCorrected: 0 }];
+    // Both rows' guarded UPDATE (still needs_review at write time) actually matches —
+    // no concurrent action raced either of them.
+    mocks.updateReturningQueue = [[{ id: 'row-1' }], [{ id: 'row-2' }]];
 
     const result = await acceptField('fv-table', 'alice', 'session-1');
 
@@ -171,6 +186,30 @@ describe('acceptField', () => {
     expect(sessionUpdates).toHaveLength(1);
     expect(sqlDelta(sessionUpdates[0].values.itemsReviewed)).toBe(1);
     expect(sqlDelta(sessionUpdates[0].values.itemsCorrected)).toBe(0);
+  });
+
+  // Regression: a concurrent correctRow on one of the swept-up rows must not be
+  // silently overwritten with the stale pre-correction cells this loop read at
+  // SELECT time. See actions.ts's acceptField — the per-row UPDATE re-asserts
+  // status='needs_review' and this simulates that guard NOT matching for row-1
+  // (as if a correctRow had already flipped it to 'confirmed' in the meantime).
+  it("does not clobber a row a concurrent correctRow already resolved, and still resolves the other row normally", async () => {
+    mocks.fieldValuesResult = [{ id: 'fv-table', status: 'needs_review', fieldType: 'table', normalizedValue: null }];
+    mocks.fieldValueRowsResult = [
+      { id: 'row-1', cells: { description: 'Widget', amount: '106.81' }, status: 'needs_review' },
+      { id: 'row-2', cells: { description: 'Gadget', amount: '2.00' }, status: 'needs_review' },
+    ];
+    mocks.reviewSessionsResult = [{ id: 'session-1', itemsReviewed: 0, itemsCorrected: 0 }];
+    // row-1's guarded UPDATE matches 0 rows (already resolved elsewhere); row-2's matches.
+    mocks.updateReturningQueue = [[], [{ id: 'row-2' }]];
+
+    await acceptField('fv-table', 'alice', 'session-1');
+
+    // Both UPDATE statements are still attempted (the guard is enforced in SQL, not
+    // by skipping the call) — but only row-2 gets a corrections audit entry.
+    const rowCorrections = insertsTo(corrections).filter((c) => c.values.fieldValueRowId !== undefined);
+    expect(rowCorrections).toHaveLength(1);
+    expect(rowCorrections[0].values.fieldValueRowId).toBe('row-2');
   });
 });
 
@@ -376,6 +415,8 @@ describe('undoRow', () => {
     const cells = { description: 'Widget', amount: '1.00' };
     mocks.fieldValueRowsResult = [{ id: 'row-1', status: 'confirmed', cells, finalCells: cells }];
     mocks.reviewSessionsResult = [{ id: 'session-1', itemsReviewed: 2, itemsCorrected: 0 }];
+    // acceptRow's own corrections insert never sets columnKey (see acceptRow above).
+    mocks.correctionsResult = [{ fieldValueRowId: 'row-1', columnKey: null, correctedAt: new Date('2026-08-01T00:00:00Z') }];
 
     const result = await undoRow('row-1', 'alice', 'session-1');
 
@@ -391,11 +432,30 @@ describe('undoRow', () => {
       { id: 'row-1', status: 'confirmed', cells: { amount: '1.00' }, finalCells: { amount: '9.99' } },
     ];
     mocks.reviewSessionsResult = [{ id: 'session-1', itemsReviewed: 2, itemsCorrected: 1 }];
+    mocks.correctionsResult = [{ fieldValueRowId: 'row-1', columnKey: 'amount', correctedAt: new Date('2026-08-01T00:00:00Z') }];
 
     await undoRow('row-1', 'alice', 'session-1');
 
     const sessionUpdate = updatesTo(reviewSessions)[0].values;
     expect(sqlDelta(sessionUpdate.itemsReviewed)).toBe(-1);
+    expect(sqlDelta(sessionUpdate.itemsCorrected)).toBe(-1);
+  });
+
+  // Regression: correctRow's newValue can happen to equal the cell's existing value
+  // (e.g. the UI resubmitting an unedited field on Save) — finalCells then equals
+  // cells even though correctRow genuinely ran and bumped itemsCorrected. The old
+  // value-equality inference missed this and left itemsCorrected permanently
+  // overcounted after undo; reading the corrections audit trail's columnKey instead
+  // gets it right regardless of whether the corrected value happened to be unchanged.
+  it('treats a same-value correctRow call as corrected, even though finalCells equals cells', async () => {
+    const cells = { amount: '10.00' };
+    mocks.fieldValueRowsResult = [{ id: 'row-1', status: 'confirmed', cells, finalCells: { ...cells } }];
+    mocks.reviewSessionsResult = [{ id: 'session-1', itemsReviewed: 2, itemsCorrected: 1 }];
+    mocks.correctionsResult = [{ fieldValueRowId: 'row-1', columnKey: 'amount', correctedAt: new Date('2026-08-01T00:00:00Z') }];
+
+    await undoRow('row-1', 'alice', 'session-1');
+
+    const sessionUpdate = updatesTo(reviewSessions)[0].values;
     expect(sqlDelta(sessionUpdate.itemsCorrected)).toBe(-1);
   });
 });

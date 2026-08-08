@@ -72,6 +72,13 @@ export function ReviewPane({ item, onAcceptField, onCorrectField, onAcceptRow, o
     const result = await onAcceptField(item.fieldValueId);
     setPending(false);
     if (!result.ok) { setError(result.message); return; }
+    // A noop (result.ok but result.noop) means the server 400'd not_needs_review —
+    // this field was already resolved by something else (a concurrent action on a
+    // shared queue) between when it was loaded and this click. runAction() treats
+    // that as a non-error so the queue can move on, but nothing was actually
+    // accepted here — showing the same green "Saved" state as a real save would
+    // silently claim otherwise, with no indication to the reviewer anything was off.
+    if (result.noop) { setError('Already resolved elsewhere — refresh to see the current value.'); return; }
     setSavedVia('accept');
   }
 
@@ -82,6 +89,8 @@ export function ReviewPane({ item, onAcceptField, onCorrectField, onAcceptRow, o
     const result = await onCorrectField(item.fieldValueId, value);
     setPending(false);
     if (!result.ok) { setError(result.message); return; }
+    // Same noop case as handleAccept above — the edit was NOT persisted.
+    if (result.noop) { setError('Already resolved elsewhere — refresh to see the current value.'); return; }
     setSavedVia('correct');
   }
 
