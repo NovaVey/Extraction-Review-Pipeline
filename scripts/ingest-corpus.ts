@@ -9,7 +9,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { db, pool } from '../api/src/db/client.js';
 import { batches, extractionSchemas } from '../api/src/db/schema.js';
 import { ingestDocument } from '../api/src/ingest/upload.js';
@@ -29,11 +29,16 @@ interface Manifest {
 }
 
 async function getOrCreateBatch(docType: DocType): Promise<string> {
+  // extraction_schemas is unique on (name, version), not docType alone (see
+  // api/src/db/schema.ts), and POST /schemas lets any caller insert a new version
+  // for an existing docType — the DB's supported schema-evolution path, not a
+  // hypothetical. Ordering ascending and taking the first row silently bound new
+  // batches to the OLDEST schema version whenever more than one existed.
   const [schema] = await db
     .select({ id: extractionSchemas.id })
     .from(extractionSchemas)
     .where(eq(extractionSchemas.docType, docType))
-    .orderBy(extractionSchemas.version)
+    .orderBy(desc(extractionSchemas.version))
     .limit(1);
   if (!schema) {
     throw new Error(`No extraction_schemas row for docType="${docType}" — run scripts/seed-schemas.ts first`);
