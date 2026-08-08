@@ -8,6 +8,7 @@ import {
   correctField,
   correctRow,
   endReviewSessionBeacon,
+  fetchBatch,
   fetchNextReviewItem,
   fetchReviewQueueStats,
   startReviewSession,
@@ -17,7 +18,7 @@ import {
 import { DocViewer } from './components/DocViewer/DocViewer';
 import { QueueSidebar } from './components/QueueSidebar/QueueSidebar';
 import { ReviewPane } from './components/ReviewPane/ReviewPane';
-import type { ActionOutcome, ActionResult, ReviewItem, ReviewQueueStats } from './types';
+import type { ActionOutcome, ActionResult, BatchDocumentSummary, ReviewItem, ReviewQueueStats } from './types';
 
 const REVIEWER_STORAGE_KEY = 'reviewerName';
 
@@ -45,6 +46,11 @@ function App() {
   // accept/correct doesn't visibly flash to a blank loading screen on every keystroke.
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [stats, setStats] = useState<ReviewQueueStats | null>(null);
+  // The batch of whatever document is currently under review, and its sibling
+  // documents' live status — null while there's no current batch (nothing loaded
+  // yet, or the queue is empty) rather than an empty array, so QueueSidebar can
+  // tell "no batch to show" apart from "batch has zero documents".
+  const [batchDocuments, setBatchDocuments] = useState<BatchDocumentSummary[] | null>(null);
   // Which fieldValueId was just accepted via the global "nothing focused" shortcut —
   // ReviewPane's own accept/correct handlers set their own local "Saved" state
   // directly, but that path is bypassed entirely when this global listener is what
@@ -182,6 +188,38 @@ function App() {
     if (reviewSessionId) refetchStats();
   }, [reviewSessionId, refetchStats]);
 
+  // Same "best-effort, never interrupts reviewing" reasoning as refetchStats — the
+  // batch-documents sidebar is supplementary. Takes batchId explicitly (rather than
+  // reading currentBatchId from a closure) so callers control exactly which batch's
+  // documents they're asking for, since it's called both reactively (the effect
+  // below, keyed on the current item's batch) and imperatively right after an
+  // action that may have just changed a document's status (see runAction/handleUndo/
+  // handleConfirmRemoveDocument).
+  const refetchBatchDocuments = useCallback((batchId: string | null) => {
+    if (!batchId) {
+      setBatchDocuments(null);
+      return;
+    }
+    fetchBatch(batchId)
+      .then((batch) => setBatchDocuments(batch.documents))
+      .catch(() => {});
+  }, []);
+
+  // The batch of whatever document is currently shown — recomputed every render
+  // from queueState, not stored as its own piece of state, so it's never at risk of
+  // drifting out of sync with what's actually on screen.
+  const currentBatchId = queueState.status === 'loaded' ? (queueState.item?.batchId ?? null) : null;
+
+  // Re-fetches whenever the CURRENT item's batch changes (moving to a document in a
+  // different batch, or the queue emptying out) — action-triggered refreshes for
+  // "same batch, but a document's status just changed" are handled separately
+  // wherever refetchStats() already is (see runAction/handleUndo/
+  // handleConfirmRemoveDocument), since this effect's dependency wouldn't otherwise
+  // re-fire for those.
+  useEffect(() => {
+    refetchBatchDocuments(currentBatchId);
+  }, [currentBatchId, refetchBatchDocuments]);
+
   const armLastAction = useCallback((action: LastAction) => {
     if (lastActionTimeoutRef.current !== null) clearTimeout(lastActionTimeoutRef.current);
     setLastAction(action);
@@ -200,6 +238,10 @@ function App() {
         setItemsReviewed((n) => n + delta.reviewed);
         setItemsCorrected((n) => n + delta.corrected);
         refetchStats();
+        // The action just resolved just changed some document's status within
+        // currentBatchId — refresh the sidebar's list to reflect it, since the
+        // batchId-keyed effect above won't re-fire for a same-batch action.
+        refetchBatchDocuments(currentBatchId);
         if (refetchTimeoutRef.current !== null) clearTimeout(refetchTimeoutRef.current);
         refetchTimeoutRef.current = setTimeout(refetchQueue, 400);
         return { ok: true };
@@ -211,12 +253,13 @@ function App() {
         if (err instanceof ApiError && err.status === 400 && err.code === 'not_needs_review') {
           refetchQueue();
           refetchStats();
+          refetchBatchDocuments(currentBatchId);
           return { ok: true, noop: true };
         }
         return { ok: false, message: "That value didn't save — try again." };
       }
     },
-    [refetchQueue, refetchStats],
+    [refetchQueue, refetchStats, refetchBatchDocuments, currentBatchId],
   );
 
   const handleAcceptField = useCallback(
@@ -407,6 +450,7 @@ function App() {
       }
       refetchQueue();
       refetchStats();
+      refetchBatchDocuments(currentBatchId);
     } catch {
       // Best-effort — if the undo call itself fails (network, or the item was
       // already touched again by something else in the meantime), there's nothing
@@ -453,6 +497,9 @@ function App() {
     setLastAction(null);
     refetchQueue();
     refetchStats();
+    // The removed document should drop out of the sidebar's list immediately, not
+    // wait for currentBatchId to happen to change to something else and back.
+    refetchBatchDocuments(currentBatchId);
   }
 
   function handleRetry() {
@@ -472,7 +519,11 @@ function App() {
     <div className="flex h-screen flex-col overflow-hidden bg-[#FCFCFD] text-[#101114]">
       <Header reviewerName={reviewerName} itemsReviewed={itemsReviewed} itemsCorrected={itemsCorrected} onChangeReviewer={handleRequestChangeReviewer} />
       <div className="flex min-h-0 flex-1">
-        <QueueSidebar stats={stats} />
+        <QueueSidebar
+          stats={stats}
+          batchDocuments={batchDocuments}
+          currentDocumentId={queueState.status === 'loaded' ? (queueState.item?.documentId ?? null) : null}
+        />
         <main className="min-h-0 flex-1 overflow-y-auto p-4">
           {sessionError && !reviewSessionId ? (
             <ErrorState message={sessionError} onRetry={handleRetry} />

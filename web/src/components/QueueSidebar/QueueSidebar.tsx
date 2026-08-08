@@ -1,10 +1,17 @@
-import type { ReviewQueueStats } from '../../types';
+import type { BatchDocumentSummary, ReviewQueueStats } from '../../types';
+import { humanizeFilename } from '../../lib/humanizeFilename';
 
 interface QueueSidebarProps {
   stats: ReviewQueueStats | null;
+  // The batch of whatever document is currently under review, and its sibling
+  // documents' live status -- null (not an empty array) while there's no current
+  // batch to show yet (no item loaded) or the fetch is still in flight, so the
+  // section can be omitted entirely rather than flashing an empty list.
+  batchDocuments: BatchDocumentSummary[] | null;
+  currentDocumentId: string | null;
 }
 
-export function QueueSidebar({ stats }: QueueSidebarProps) {
+export function QueueSidebar({ stats, batchDocuments, currentDocumentId }: QueueSidebarProps) {
   const resolved = stats ? stats.totalItems - stats.needsReview : 0;
   const pct = stats && stats.totalItems > 0 ? Math.round((resolved / stats.totalItems) * 100) : null;
 
@@ -41,6 +48,30 @@ export function QueueSidebar({ stats }: QueueSidebarProps) {
           <StatRow tone="green" label="Confirmed" value={stats.confirmed} />
           <StatRow tone="blue" label="Corrected" value={stats.corrected} />
         </dl>
+      )}
+
+      {batchDocuments !== null && batchDocuments.length > 0 && (
+        <div className="min-h-0 flex-1">
+          <h2 className="text-xs font-medium uppercase tracking-wide text-[#4B5563]">This Batch</h2>
+          <ul className="mt-2 flex flex-col gap-0.5">
+            {batchDocuments.map((doc) => (
+              <li
+                key={doc.id}
+                title={doc.filename}
+                aria-current={doc.id === currentDocumentId ? 'true' : undefined}
+                className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-xs ${
+                  doc.id === currentDocumentId ? 'bg-[#F3F4F6] font-medium text-[#101114]' : 'text-[#4B5563]'
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${doc.needsReview ? 'bg-amber-500' : 'bg-green-500'}`}
+                />
+                <span className="truncate">{humanizeFilename(doc.filename)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </aside>
   );

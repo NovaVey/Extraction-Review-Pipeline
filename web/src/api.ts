@@ -1,4 +1,4 @@
-import type { ActionResult, ReviewItem, ReviewQueueStats, ReviewSession } from './types';
+import type { ActionResult, BatchWithDocuments, ReviewItem, ReviewQueueStats, ReviewSession } from './types';
 
 // Distinguishes a structured API error (status code + the route's `error` code,
 // e.g. 'not_needs_review') from a network failure, so callers can react to
@@ -114,4 +114,8 @@ export function archiveDocument(documentId: string, reviewer: string): Promise<{
     method: 'POST',
     body: JSON.stringify({ reviewer }),
   });
+}
+
+export function fetchBatch(batchId: string): Promise<BatchWithDocuments> {
+  return request(`/api/batches/${batchId}`);
 }
