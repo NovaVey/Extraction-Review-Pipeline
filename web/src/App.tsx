@@ -81,6 +81,14 @@ function App() {
   // earlier-started-but-slower fetch resolving LAST would silently overwrite a
   // newer fetch's already-current queue state with stale data.
   const queueFetchSeqRef = useRef(0);
+  // Same reasoning and pattern as queueFetchSeqRef, for refetchBatchDocuments below —
+  // that call is fired from several places close together (the effect keyed on the
+  // current item's batch, plus runAction's success/noop paths, handleUndo, and
+  // handleConfirmRemoveDocument, all of which can target the SAME batchId in quick
+  // succession, e.g. two row-accepts fired before either's debounced queue refetch
+  // has disabled the controls) and per-request latency varies enough for two
+  // concurrent GET /batches/:id calls to resolve out of send-order.
+  const batchDocumentsFetchSeqRef = useRef(0);
   // Whether the "change reviewer" confirmation dialog is open. A native
   // window.confirm() was tried first and rejected by adversarial review: Enter
   // both activates the "change" button *and* is bound to a native confirm
@@ -196,12 +204,19 @@ function App() {
   // action that may have just changed a document's status (see runAction/handleUndo/
   // handleConfirmRemoveDocument).
   const refetchBatchDocuments = useCallback((batchId: string | null) => {
+    // Bumped even on the early-return (null batchId) path — an earlier call that's
+    // still in flight for a PREVIOUS batchId must not be allowed to resolve after
+    // this and overwrite the intentional clear with stale data.
+    const mySeq = ++batchDocumentsFetchSeqRef.current;
     if (!batchId) {
       setBatchDocuments(null);
       return;
     }
     fetchBatch(batchId)
-      .then((batch) => setBatchDocuments(batch.documents))
+      .then((batch) => {
+        if (batchDocumentsFetchSeqRef.current !== mySeq) return;
+        setBatchDocuments(batch.documents);
+      })
       .catch(() => {});
   }, []);
 
