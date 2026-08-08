@@ -161,7 +161,10 @@ function computeStats() {
 }
 
 // Mirrors the real API's GET /batches/:id shape (routes/batches.ts) — a trimmed,
-// needsReview-badged view of the batch's active (non-archived) documents.
+// needsReview-badged view of the batch's active (non-archived) documents, now with
+// a per-field breakdown (mirroring getBatchFieldSummaries) so the dropdown can show
+// one entry per FIELD, not per document -- doc-1 alone has two (vendor_name, due_date),
+// which is the exact "3 documents but 4 fields" undercount this feature exists to fix.
 //
 // displayName mirrors getDocumentDisplayNames's real logic: the first declared
 // *string* schema field with a value, preferring the live finalValue once
@@ -176,12 +179,25 @@ function batchDocuments() {
       id: itemA.documentId, filename: itemA.documentFilename, status: 'processed',
       needsReview: itemAStatus === 'needs_review' || itemBStatus === 'needs_review',
       displayName: itemAFinal ?? itemA.normalizedValue,
+      fields: [
+        { fieldValueId: itemA.fieldValueId, fieldKey: itemA.fieldKey, label: itemA.label, needsReview: itemAStatus === 'needs_review' },
+        { fieldValueId: itemB.fieldValueId, fieldKey: itemB.fieldKey, label: itemB.label, needsReview: itemBStatus === 'needs_review' },
+      ],
     },
-    { id: itemC.documentId, filename: itemC.documentFilename, status: 'processed', needsReview: itemC.rows.some((r) => r.status === 'needs_review'), displayName: null },
+    {
+      id: itemC.documentId, filename: itemC.documentFilename, status: 'processed',
+      needsReview: itemC.rows.some((r) => r.status === 'needs_review'), displayName: null,
+      fields: [
+        { fieldValueId: itemC.fieldValueId, fieldKey: itemC.fieldKey, label: itemC.label, needsReview: itemC.rows.some((r) => r.status === 'needs_review') },
+      ],
+    },
     {
       id: itemD.documentId, filename: itemD.documentFilename, status: 'processed',
       needsReview: itemDStatus === 'needs_review',
       displayName: itemDFinal ?? itemD.normalizedValue,
+      fields: [
+        { fieldValueId: itemD.fieldValueId, fieldKey: itemD.fieldKey, label: itemD.label, needsReview: itemDStatus === 'needs_review' },
+      ],
     },
   ];
   return docs.filter((d) => !archivedDocumentIds.has(d.id));
@@ -286,6 +302,30 @@ async function handleApi(req, res, apiPath) {
     if (id === itemC.documentId) return sendJson(res, 200, { item: itemC });
     if (id === itemD.documentId) return sendJson(res, 200, { item: liveItem(itemD, itemDStatus, itemDFinal) });
     return sendJson(res, 404, { error: 'document_not_found' });
+  }
+  // Mirrors getReviewItemForField: a direct id lookup (no candidate selection, no
+  // tie-break), unlike /review/documents/:id above -- powers the batch dropdown's
+  // per-field rows and the in-place Undo button's post-undo refresh. The owning
+  // document's archived state is checked FIRST (matching the real route's
+  // document_not_found-takes-precedence shape), so an archived document's field ids
+  // 404 document_not_found even though the field id itself is still "known".
+  const reviewFieldMatch = apiPath.match(/^\/review\/fields\/([^/]+)$/);
+  if (req.method === 'GET' && reviewFieldMatch) {
+    const id = reviewFieldMatch[1];
+    const owningDocumentId =
+      id === itemA.fieldValueId || id === itemB.fieldValueId
+        ? itemA.documentId
+        : id === itemC.fieldValueId
+          ? itemC.documentId
+          : id === itemD.fieldValueId
+            ? itemD.documentId
+            : null;
+    if (owningDocumentId === null) return sendJson(res, 404, { error: 'field_not_found' });
+    if (archivedDocumentIds.has(owningDocumentId)) return sendJson(res, 404, { error: 'document_not_found' });
+    if (id === itemA.fieldValueId) return sendJson(res, 200, { item: liveItem(itemA, itemAStatus, itemAFinal) });
+    if (id === itemB.fieldValueId) return sendJson(res, 200, { item: liveItem(itemB, itemBStatus, itemBFinal) });
+    if (id === itemC.fieldValueId) return sendJson(res, 200, { item: itemC });
+    return sendJson(res, 200, { item: liveItem(itemD, itemDStatus, itemDFinal) });
   }
   if (req.method === 'GET' && apiPath === '/review/stats') {
     return sendJson(res, 200, computeStats());
