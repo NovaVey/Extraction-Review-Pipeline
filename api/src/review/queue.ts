@@ -17,6 +17,7 @@ export interface ReviewItem {
   fieldValueId: string;
   documentId: string;
   documentFilename: string;
+  batchId: string | null;
   fieldKey: string;
   fieldType: FieldType;
   label: string;
@@ -139,6 +140,7 @@ export async function getNextReviewItem(batchId?: string): Promise<ReviewItem | 
     fieldValueId: chosen.id,
     documentId: chosen.documentId,
     documentFilename: document?.filename ?? '',
+    batchId: document?.batchId ?? null,
     fieldKey: chosen.fieldKey,
     fieldType: chosen.fieldType as FieldType,
     label: fieldSpec?.label ?? chosen.fieldKey,
@@ -164,12 +166,16 @@ export interface ReviewQueueStats {
 
 const EMPTY_STATS: ReviewQueueStats = { totalItems: 0, needsReview: 0, autoAccepted: 0, confirmed: 0, corrected: 0 };
 
-// Same "only a document's current extraction counts" rule as getNextReviewItem (a
-// re-extracted document's superseded field_values must not be counted, needs_review
-// or otherwise) and the same row-candidate OR-ing — a field already auto_accepted at
-// its own level still counts as needing review here if one of its rows does, since
-// that's exactly what would surface it in the queue.
-export async function getReviewQueueStats(): Promise<ReviewQueueStats> {
+// Shared by getReviewQueueStats and getNeedsReviewDocumentIds below — both need the
+// identical "which field_values actually count right now" set (only a document's
+// CURRENT extraction counts, so a superseded extraction's stale needs_review field
+// is ignored; an archived document never counts regardless of its field_values' own
+// status), just aggregated differently. Extracted once both call sites needed it,
+// not preemptively — a bugfix to this logic no longer has to be applied twice.
+async function getCurrentFieldValuesExcludingArchived(): Promise<{
+  currentFieldValues: Array<{ id: string; documentId: string; status: string }>;
+  rowPendingFieldValueIds: Set<string>;
+}> {
   const archivedDocuments = await db.select({ id: documents.id }).from(documents).where(isNotNull(documents.archivedAt));
   const archivedDocumentIds = new Set(archivedDocuments.map((d) => d.id));
 
@@ -183,15 +189,29 @@ export async function getReviewQueueStats(): Promise<ReviewQueueStats> {
     if (!existing || e.startedAt > existing.startedAt) latestByDocument.set(e.documentId, { id: e.id, startedAt: e.startedAt });
   }
   const currentExtractionIds = [...new Set([...latestByDocument.values()].map((v) => v.id))];
-  if (currentExtractionIds.length === 0) return EMPTY_STATS;
+  // No further queries once there's nothing to count — matches getReviewQueueStats'
+  // and getNeedsReviewDocumentIds' original short-circuit behavior exactly (neither
+  // fieldValueRows nor fieldValues gets queried when this is empty).
+  if (currentExtractionIds.length === 0) return { currentFieldValues: [], rowPendingFieldValueIds: new Set() };
 
   const needsReviewRows = await db.select({ fieldValueId: fieldValueRows.fieldValueId }).from(fieldValueRows).where(eq(fieldValueRows.status, 'needs_review'));
   const rowPendingFieldValueIds = new Set(needsReviewRows.map((r) => r.fieldValueId));
 
   const currentFieldValues = await db
-    .select({ id: fieldValues.id, status: fieldValues.status })
+    .select({ id: fieldValues.id, documentId: fieldValues.documentId, status: fieldValues.status })
     .from(fieldValues)
     .where(inArray(fieldValues.extractionId, currentExtractionIds));
+
+  return { currentFieldValues, rowPendingFieldValueIds };
+}
+
+// Same "only a document's current extraction counts" rule as getNextReviewItem (a
+// re-extracted document's superseded field_values must not be counted, needs_review
+// or otherwise) and the same row-candidate OR-ing — a field already auto_accepted at
+// its own level still counts as needing review here if one of its rows does, since
+// that's exactly what would surface it in the queue.
+export async function getReviewQueueStats(): Promise<ReviewQueueStats> {
+  const { currentFieldValues, rowPendingFieldValueIds } = await getCurrentFieldValuesExcludingArchived();
 
   const stats = { ...EMPTY_STATS, totalItems: currentFieldValues.length };
   for (const fv of currentFieldValues) {
@@ -201,4 +221,18 @@ export async function getReviewQueueStats(): Promise<ReviewQueueStats> {
     else if (fv.status === 'corrected') stats.corrected++;
   }
   return stats;
+}
+
+// Documents whose current extraction has at least one field or row still
+// needs_review — used by the batch-documents sidebar to badge which invoices in a
+// batch still need attention. Same exclusions as getReviewQueueStats: an archived
+// document never counts, and only a document's current extraction counts.
+export async function getNeedsReviewDocumentIds(): Promise<Set<string>> {
+  const { currentFieldValues, rowPendingFieldValueIds } = await getCurrentFieldValuesExcludingArchived();
+
+  const needsReviewDocumentIds = new Set<string>();
+  for (const fv of currentFieldValues) {
+    if (fv.status === 'needs_review' || rowPendingFieldValueIds.has(fv.id)) needsReviewDocumentIds.add(fv.documentId);
+  }
+  return needsReviewDocumentIds;
 }

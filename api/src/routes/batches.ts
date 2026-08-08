@@ -5,6 +5,7 @@ import { db } from '../db/client.js';
 import { batches, documents } from '../db/schema.js';
 import { ingestDocument } from '../ingest/upload.js';
 import { isForeignKeyViolation } from '../lib/pgErrors.js';
+import { getNeedsReviewDocumentIds } from '../review/queue.js';
 
 const CreateBatchBody = z.object({
   name: z.string().min(1),
@@ -41,7 +42,18 @@ export async function batchRoutes(app: FastifyInstance) {
       return reply.code(404).send({ error: 'batch_not_found' });
     }
     const docs = await db.select().from(documents).where(eq(documents.batchId, id));
-    reply.send({ ...batch, documents: docs });
+    const needsReviewDocumentIds = await getNeedsReviewDocumentIds();
+    // Trimmed to what the batch-documents sidebar actually needs (id, filename,
+    // ingest status, and a live needsReview badge) rather than every raw column —
+    // nothing currently consumes this endpoint's previous full-row shape, so this is
+    // a deliberate contract for that one consumer, not a breaking change to anything
+    // real. Archived documents are excluded here the same way they're excluded from
+    // the review queue, stats, and default exports — a soft-deleted document
+    // shouldn't resurface in a batch summary either.
+    const activeDocs = docs
+      .filter((d) => !d.archivedAt)
+      .map((d) => ({ id: d.id, filename: d.filename, status: d.status, needsReview: needsReviewDocumentIds.has(d.id) }));
+    reply.send({ id: batch.id, name: batch.name, status: batch.status, documents: activeDocs });
   });
 
   app.post<{ Params: { id: string } }>('/batches/:id/documents', async (req, reply) => {
