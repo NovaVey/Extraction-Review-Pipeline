@@ -18,6 +18,10 @@ const pageA = { id: 'page-1', pageNumber: 1, width: 1224, height: 1584, file: 'i
 const pageB = { id: 'page-2', pageNumber: 1, width: 1224, height: 1584, file: 'invoice_clean_04_p1.png' };
 const pageC = { id: 'page-3', pageNumber: 1, width: 1224, height: 1584, file: 'invoice_clean_07_p1.png' };
 
+// All three demo documents live in one fake batch, so the "This Batch" sidebar
+// (QueueSidebar) has something to show — every item below carries this same id.
+const DEMO_BATCH_ID = 'batch-demo-1';
+
 const lineItemColumns = [
   { key: 'description', label: 'Description', type: 'string' },
   { key: 'quantity', label: 'Quantity', type: 'number' },
@@ -26,7 +30,7 @@ const lineItemColumns = [
 ];
 
 const itemA = {
-  fieldValueId: 'fv-vendor-1', documentId: 'doc-1', documentFilename: 'invoice_clean_01.pdf',
+  fieldValueId: 'fv-vendor-1', documentId: 'doc-1', documentFilename: 'invoice_clean_01.pdf', batchId: DEMO_BATCH_ID,
   fieldKey: 'vendor_name', fieldType: 'string', label: 'Vendor Name',
   description: 'The name of the company issuing the invoice.',
   rawValue: 'Harrow & Fnch Materials', normalizedValue: 'Harrow & Fnch Materials',
@@ -35,7 +39,7 @@ const itemA = {
 };
 
 const itemB = {
-  fieldValueId: 'fv-duedate-1', documentId: 'doc-1', documentFilename: 'invoice_clean_01.pdf',
+  fieldValueId: 'fv-duedate-1', documentId: 'doc-1', documentFilename: 'invoice_clean_01.pdf', batchId: DEMO_BATCH_ID,
   fieldKey: 'due_date', fieldType: 'date', label: 'Due Date',
   description: 'The date payment is due.',
   rawValue: '2025-10-20', normalizedValue: '2025-10-20',
@@ -51,7 +55,7 @@ const ROW3_INITIAL = {
 };
 
 const itemC = {
-  fieldValueId: 'fv-lineitems-1', documentId: 'doc-2', documentFilename: 'invoice_clean_04.pdf',
+  fieldValueId: 'fv-lineitems-1', documentId: 'doc-2', documentFilename: 'invoice_clean_04.pdf', batchId: DEMO_BATCH_ID,
   fieldKey: 'line_items', fieldType: 'table', label: 'Line Items',
   description: 'Itemized products or services billed.',
   rawValue: null, normalizedValue: null,
@@ -67,7 +71,7 @@ const itemC = {
 };
 
 const itemD = {
-  fieldValueId: 'fv-invoicenum-1', documentId: 'doc-3', documentFilename: 'invoice_clean_07.pdf',
+  fieldValueId: 'fv-invoicenum-1', documentId: 'doc-3', documentFilename: 'invoice_clean_07.pdf', batchId: DEMO_BATCH_ID,
   fieldKey: 'invoice_number', fieldType: 'string', label: 'Invoice Number',
   description: 'The unique identifier printed on the invoice.',
   rawValue: 'INV-31S87', normalizedValue: 'INV-31S87',
@@ -145,6 +149,17 @@ function computeStats() {
   return { totalItems, needsReview, autoAccepted, confirmed, corrected };
 }
 
+// Mirrors the real API's GET /batches/:id shape (routes/batches.ts) — a trimmed,
+// needsReview-badged view of the batch's active (non-archived) documents.
+function batchDocuments() {
+  const docs = [
+    { id: itemA.documentId, filename: itemA.documentFilename, status: 'processed', needsReview: itemAStatus === 'needs_review' || itemBStatus === 'needs_review' },
+    { id: itemC.documentId, filename: itemC.documentFilename, status: 'processed', needsReview: itemC.rows.some((r) => r.status === 'needs_review') },
+    { id: itemD.documentId, filename: itemD.documentFilename, status: 'processed', needsReview: itemDStatus === 'needs_review' },
+  ];
+  return docs.filter((d) => !archivedDocumentIds.has(d.id));
+}
+
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let data = '';
@@ -218,6 +233,10 @@ async function handleApi(req, res, apiPath) {
   }
   if (req.method === 'GET' && apiPath === '/review/stats') {
     return sendJson(res, 200, computeStats());
+  }
+  const batchMatch = apiPath.match(/^\/batches\/([^/]+)$/);
+  if (req.method === 'GET' && batchMatch) {
+    return sendJson(res, 200, { id: batchMatch[1], name: 'Demo batch', status: 'open', documents: batchDocuments() });
   }
   if (req.method === 'POST' && apiPath === '/demo/reset') {
     resetState();
