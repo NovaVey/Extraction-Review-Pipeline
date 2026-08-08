@@ -1,4 +1,4 @@
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { fieldValues, fieldValueRows, corrections, reviewSessions } from '../db/schema.js';
 
@@ -105,7 +105,20 @@ export async function acceptField(fieldValueId: string, reviewer: string, review
       .from(fieldValueRows)
       .where(and(eq(fieldValueRows.fieldValueId, fieldValueId), eq(fieldValueRows.status, 'needs_review')));
     for (const row of outstandingRows) {
-      await db.update(fieldValueRows).set({ status: 'confirmed', finalCells: row.cells }).where(eq(fieldValueRows.id, row.id));
+      // Re-asserts status='needs_review' in the UPDATE itself, not just the SELECT
+      // above — a concurrent correctRow on this exact row (a real race: two reviewers
+      // on the same shared queue, or a client retry) can land its own real correction
+      // in the gap between that SELECT and this UPDATE. Without this guard, this write
+      // would silently overwrite that correction with the pre-correction `row.cells`
+      // this loop already had in hand. When the guard doesn't match (0 rows updated),
+      // the row was already resolved by that other action — leave it alone rather than
+      // clobber it, and skip the audit entry for a write that didn't happen.
+      const [updatedRow] = await db
+        .update(fieldValueRows)
+        .set({ status: 'confirmed', finalCells: row.cells })
+        .where(and(eq(fieldValueRows.id, row.id), eq(fieldValueRows.status, 'needs_review')))
+        .returning();
+      if (!updatedRow) continue;
       const serializedCells = JSON.stringify(row.cells);
       await db.insert(corrections).values({
         fieldValueRowId: row.id,
@@ -275,9 +288,20 @@ export async function undoRow(fieldValueRowId: string, reviewer: string, reviewS
 
   // Rows share one status ('confirmed') for both accept-as-is and correct (see
   // correctRow) — whether this undo should also reverse a "corrected" session count
-  // is inferred the same way the review UI itself distinguishes the two: whether the
-  // reviewed cells actually differ from what was originally extracted.
-  const wasCorrected = JSON.stringify(row.finalCells) !== JSON.stringify(row.cells);
+  // can't be reliably inferred from finalCells-vs-cells value equality: a correctRow
+  // call whose newValue happens to match the cell's existing value (e.g. the UI
+  // resubmitting an unedited field on Save) still counted as `corrected` when it ran,
+  // but leaves finalCells identical to cells. The corrections audit trail is the
+  // actual record of which action last resolved this row — correctRow always writes
+  // a non-null columnKey, acceptRow never does (see both above) — so read that back
+  // instead of re-deriving it from the cell values.
+  const [lastCorrection] = await db
+    .select()
+    .from(corrections)
+    .where(eq(corrections.fieldValueRowId, fieldValueRowId))
+    .orderBy(desc(corrections.correctedAt))
+    .limit(1);
+  const wasCorrected = lastCorrection?.columnKey != null;
 
   await db.update(fieldValueRows).set({ status: 'needs_review', finalCells: null }).where(eq(fieldValueRows.id, fieldValueRowId));
 
