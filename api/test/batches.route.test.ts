@@ -81,7 +81,7 @@ describe('GET /batches/:id', () => {
     mocks.getDocumentDisplayNames.mockResolvedValue(new Map([['doc-1', 'Acme Corp'], ['doc-2', null]]));
     mocks.getBatchFieldSummaries.mockResolvedValue(
       new Map([
-        ['doc-1', [{ fieldValueId: 'fv-1', fieldKey: 'vendor_name', label: 'Vendor Name', needsReview: true }]],
+        ['doc-1', [{ fieldValueId: 'fv-1', fieldKey: 'vendor_name', label: 'Vendor Name', status: 'needs_review' }]],
         ['doc-2', []],
       ]),
     );
@@ -97,7 +97,7 @@ describe('GET /batches/:id', () => {
       documents: [
         {
           id: 'doc-1', filename: 'invoice_01.pdf', status: 'processed', needsReview: true, displayName: 'Acme Corp',
-          fields: [{ fieldValueId: 'fv-1', fieldKey: 'vendor_name', label: 'Vendor Name', needsReview: true }],
+          fields: [{ fieldValueId: 'fv-1', fieldKey: 'vendor_name', label: 'Vendor Name', status: 'needs_review' }],
         },
         { id: 'doc-2', filename: 'invoice_02.pdf', status: 'processed', needsReview: false, displayName: null, fields: [] },
       ],
