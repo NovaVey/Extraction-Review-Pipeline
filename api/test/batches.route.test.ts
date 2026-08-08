@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   mockDocuments: [] as Array<Record<string, unknown>>,
   getNeedsReviewDocumentIds: vi.fn(async () => new Set<string>()),
   getDocumentDisplayNames: vi.fn(async () => new Map<string, string | null>()),
+  getBatchFieldSummaries: vi.fn(async () => new Map<string, unknown[]>()),
 }));
 
 function chain(resolveValue: unknown) {
@@ -36,13 +37,14 @@ vi.mock('../src/db/client.js', () => ({
   },
 }));
 
-// GET /batches/:id delegates the review-status and display-name questions to
-// review/queue.js (which has its own dedicated, thorough tests for both) rather than
-// re-deriving them — mocked at that module boundary, same pattern review.route.test.ts
-// uses for review/queue.js and review/actions.js.
+// GET /batches/:id delegates the review-status, display-name, and per-field
+// questions to review/queue.js (which has its own dedicated, thorough tests for all
+// three) rather than re-deriving them — mocked at that module boundary, same
+// pattern review.route.test.ts uses for review/queue.js and review/actions.js.
 vi.mock('../src/review/queue.js', () => ({
   getNeedsReviewDocumentIds: mocks.getNeedsReviewDocumentIds,
   getDocumentDisplayNames: mocks.getDocumentDisplayNames,
+  getBatchFieldSummaries: mocks.getBatchFieldSummaries,
 }));
 
 const { buildApp } = await import('../src/app.js');
@@ -54,6 +56,8 @@ beforeEach(() => {
   mocks.getNeedsReviewDocumentIds.mockResolvedValue(new Set());
   mocks.getDocumentDisplayNames.mockReset();
   mocks.getDocumentDisplayNames.mockResolvedValue(new Map());
+  mocks.getBatchFieldSummaries.mockReset();
+  mocks.getBatchFieldSummaries.mockResolvedValue(new Map());
 });
 
 describe('GET /batches/:id', () => {
@@ -67,7 +71,7 @@ describe('GET /batches/:id', () => {
     expect(res.json()).toEqual({ error: 'batch_not_found' });
   });
 
-  it('returns the batch with a trimmed, needsReview-badged, named document list', async () => {
+  it('returns the batch with a trimmed, needsReview-badged, named, per-field document list', async () => {
     mocks.mockBatch = { id: '11111111-1111-1111-1111-111111111111', name: 'invoice corpus', status: 'open', schemaId: 'schema-1' };
     mocks.mockDocuments = [
       { id: 'doc-1', filename: 'invoice_01.pdf', status: 'processed', archivedAt: null },
@@ -75,6 +79,12 @@ describe('GET /batches/:id', () => {
     ];
     mocks.getNeedsReviewDocumentIds.mockResolvedValue(new Set(['doc-1']));
     mocks.getDocumentDisplayNames.mockResolvedValue(new Map([['doc-1', 'Acme Corp'], ['doc-2', null]]));
+    mocks.getBatchFieldSummaries.mockResolvedValue(
+      new Map([
+        ['doc-1', [{ fieldValueId: 'fv-1', fieldKey: 'vendor_name', label: 'Vendor Name', needsReview: true }]],
+        ['doc-2', []],
+      ]),
+    );
     const app = buildApp();
 
     const res = await app.inject({ method: 'GET', url: '/batches/11111111-1111-1111-1111-111111111111' });
@@ -85,10 +95,25 @@ describe('GET /batches/:id', () => {
       name: 'invoice corpus',
       status: 'open',
       documents: [
-        { id: 'doc-1', filename: 'invoice_01.pdf', status: 'processed', needsReview: true, displayName: 'Acme Corp' },
-        { id: 'doc-2', filename: 'invoice_02.pdf', status: 'processed', needsReview: false, displayName: null },
+        {
+          id: 'doc-1', filename: 'invoice_01.pdf', status: 'processed', needsReview: true, displayName: 'Acme Corp',
+          fields: [{ fieldValueId: 'fv-1', fieldKey: 'vendor_name', label: 'Vendor Name', needsReview: true }],
+        },
+        { id: 'doc-2', filename: 'invoice_02.pdf', status: 'processed', needsReview: false, displayName: null, fields: [] },
       ],
     });
+  });
+
+  it('defaults a document to an empty fields array when the map has no entry for it', async () => {
+    mocks.mockBatch = { id: '11111111-1111-1111-1111-111111111111', name: 'invoice corpus', status: 'open', schemaId: 'schema-1' };
+    mocks.mockDocuments = [{ id: 'doc-1', filename: 'invoice_01.pdf', status: 'processed', archivedAt: null }];
+    mocks.getBatchFieldSummaries.mockResolvedValue(new Map()); // no entry for doc-1 at all
+    const app = buildApp();
+
+    const res = await app.inject({ method: 'GET', url: '/batches/11111111-1111-1111-1111-111111111111' });
+
+    const body = res.json() as { documents: Array<{ fields: unknown[] }> };
+    expect(body.documents[0].fields).toEqual([]);
   });
 
   it('defaults a document to a null displayName when the map has no entry for it', async () => {
@@ -128,5 +153,18 @@ describe('GET /batches/:id', () => {
     await app.inject({ method: 'GET', url: '/batches/11111111-1111-1111-1111-111111111111' });
 
     expect(mocks.getDocumentDisplayNames).toHaveBeenCalledWith(['doc-1'], 'schema-9');
+  });
+
+  it('calls getBatchFieldSummaries with only active (non-archived) document ids and the batch schemaId', async () => {
+    mocks.mockBatch = { id: '11111111-1111-1111-1111-111111111111', name: 'invoice corpus', status: 'open', schemaId: 'schema-9' };
+    mocks.mockDocuments = [
+      { id: 'doc-1', filename: 'invoice_01.pdf', status: 'processed', archivedAt: null },
+      { id: 'doc-removed', filename: 'invoice_removed.pdf', status: 'processed', archivedAt: '2026-08-01T00:00:00.000Z' },
+    ];
+    const app = buildApp();
+
+    await app.inject({ method: 'GET', url: '/batches/11111111-1111-1111-1111-111111111111' });
+
+    expect(mocks.getBatchFieldSummaries).toHaveBeenCalledWith(['doc-1'], 'schema-9');
   });
 });

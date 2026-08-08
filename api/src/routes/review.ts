@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { getNextReviewItem, getReviewItemForDocument, getReviewQueueStats, NoReviewableFieldError } from '../review/queue.js';
+import { getNextReviewItem, getReviewItemForDocument, getReviewItemForField, getReviewQueueStats, NoReviewableFieldError } from '../review/queue.js';
 import {
   acceptField,
   correctField,
@@ -109,6 +109,22 @@ export async function reviewRoutes(app: FastifyInstance) {
     } catch (err) {
       if (err instanceof DocumentNotFoundError) return reply.code(404).send({ error: 'document_not_found' });
       if (err instanceof NoReviewableFieldError) return reply.code(404).send({ error: 'no_review_item_found' });
+      throw err;
+    }
+  });
+
+  // Powers the batch-documents dropdown's per-field "jump to this exact field"
+  // action, and the in-place Undo button's own post-undo refresh — a direct id
+  // lookup, unlike /review/documents/:id, so it can only ever 404 field_not_found
+  // (no such field_value, or one from a superseded extraction) or document_not_found
+  // (the owning document is missing/archived); no_review_item_found never applies here.
+  app.get<{ Params: { id: string } }>('/review/fields/:id', async (req, reply) => {
+    try {
+      const item = await getReviewItemForField(req.params.id);
+      reply.send({ item });
+    } catch (err) {
+      if (err instanceof NotFoundError) return reply.code(404).send({ error: 'field_not_found' });
+      if (err instanceof DocumentNotFoundError) return reply.code(404).send({ error: 'document_not_found' });
       throw err;
     }
   });
