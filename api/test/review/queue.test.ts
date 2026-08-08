@@ -1051,7 +1051,7 @@ describe('getBatchFieldSummaries', () => {
     expect(summaries.get('doc-1')?.map((f) => f.fieldKey)).toEqual(['invoice_number', 'vendor_name', 'due_date']);
   });
 
-  it('marks needsReview true for a field whose own status is resolved but which has a still-pending row', async () => {
+  it('buckets a field as needs_review when its own status is resolved but it has a still-pending row', async () => {
     mocks.schemasCalls = [
       [{ fields: [{ key: 'line_items', label: 'Line Items', description: 'd', type: 'table', required: true, autoAcceptThreshold: 0.9, columns: [] }] }],
     ];
@@ -1061,7 +1061,36 @@ describe('getBatchFieldSummaries', () => {
 
     const summaries = await getBatchFieldSummaries(['doc-1'], 'schema-1');
 
-    expect(summaries.get('doc-1')).toEqual([{ fieldValueId: 'fv-table', fieldKey: 'line_items', label: 'Line Items', needsReview: true }]);
+    expect(summaries.get('doc-1')).toEqual([{ fieldValueId: 'fv-table', fieldKey: 'line_items', label: 'Line Items', status: 'needs_review' }]);
+  });
+
+  it('passes through each of the four bucketed statuses untouched when there is no pending row to override them', async () => {
+    mocks.schemasCalls = [
+      [
+        {
+          fields: [
+            { key: 'needs', label: 'Needs', description: 'd', type: 'string', required: true, autoAcceptThreshold: 0.9 },
+            { key: 'auto', label: 'Auto', description: 'd', type: 'string', required: true, autoAcceptThreshold: 0.9 },
+            { key: 'confirmed', label: 'Confirmed', description: 'd', type: 'string', required: true, autoAcceptThreshold: 0.9 },
+            { key: 'corrected', label: 'Corrected', description: 'd', type: 'string', required: true, autoAcceptThreshold: 0.9 },
+          ],
+        },
+      ],
+    ];
+    mocks.extractionsCalls = [[{ documentId: 'doc-1', id: 'ext-1', schemaId: 'schema-1', startedAt: new Date('2026-01-01T00:00:00Z') }]];
+    mocks.fieldValuesCalls = [
+      [
+        { id: 'fv-needs', documentId: 'doc-1', fieldKey: 'needs', status: 'needs_review' },
+        { id: 'fv-auto', documentId: 'doc-1', fieldKey: 'auto', status: 'auto_accepted' },
+        { id: 'fv-confirmed', documentId: 'doc-1', fieldKey: 'confirmed', status: 'confirmed' },
+        { id: 'fv-corrected', documentId: 'doc-1', fieldKey: 'corrected', status: 'corrected' },
+      ],
+    ];
+    mocks.fieldValueRowsCalls = [[]];
+
+    const summaries = await getBatchFieldSummaries(['doc-1'], 'schema-1');
+
+    expect(summaries.get('doc-1')?.map((f) => f.status)).toEqual(['needs_review', 'auto_accepted', 'confirmed', 'corrected']);
   });
 
   // Same defensive fallback buildReviewItem already has for a field_value whose
@@ -1082,8 +1111,8 @@ describe('getBatchFieldSummaries', () => {
     const summaries = await getBatchFieldSummaries(['doc-1'], 'schema-1');
 
     expect(summaries.get('doc-1')).toEqual([
-      { fieldValueId: 'fv-vendor', fieldKey: 'vendor_name', label: 'Vendor Name', needsReview: true },
-      { fieldValueId: 'fv-legacy', fieldKey: 'legacy_field', label: 'legacy_field', needsReview: true },
+      { fieldValueId: 'fv-vendor', fieldKey: 'vendor_name', label: 'Vendor Name', status: 'needs_review' },
+      { fieldValueId: 'fv-legacy', fieldKey: 'legacy_field', label: 'legacy_field', status: 'needs_review' },
     ]);
   });
 
@@ -1109,7 +1138,7 @@ describe('getBatchFieldSummaries', () => {
     // per-document instead of batching, doc-2's queries would consume the empty
     // fallback (see nextFrom) and its field list would come back empty instead of
     // containing fv-2.
-    expect(summaries.get('doc-1')).toEqual([{ fieldValueId: 'fv-1', fieldKey: 'vendor_name', label: 'Vendor Name', needsReview: true }]);
-    expect(summaries.get('doc-2')).toEqual([{ fieldValueId: 'fv-2', fieldKey: 'vendor_name', label: 'Vendor Name', needsReview: false }]);
+    expect(summaries.get('doc-1')).toEqual([{ fieldValueId: 'fv-1', fieldKey: 'vendor_name', label: 'Vendor Name', status: 'needs_review' }]);
+    expect(summaries.get('doc-2')).toEqual([{ fieldValueId: 'fv-2', fieldKey: 'vendor_name', label: 'Vendor Name', status: 'confirmed' }]);
   });
 });

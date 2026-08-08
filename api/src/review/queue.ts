@@ -462,7 +462,16 @@ export interface BatchFieldSummary {
   fieldValueId: string;
   fieldKey: string;
   label: string;
-  needsReview: boolean;
+  status: 'needs_review' | 'auto_accepted' | 'confirmed' | 'corrected';
+}
+
+// Same bucketing precedence as getReviewQueueStats/getNeedsReviewDocumentIds: a field
+// whose own status is already resolved (auto_accepted/confirmed/corrected) still
+// buckets as needs_review if one of its table rows is still outstanding — that's what
+// actually needs the reviewer's attention, regardless of the field-level status alone.
+function bucketFieldStatus(status: string, hasRowPending: boolean): BatchFieldSummary['status'] {
+  if (status === 'needs_review' || hasRowPending) return 'needs_review';
+  return status as BatchFieldSummary['status'];
 }
 
 // Powers the batch-documents dropdown's per-FIELD entries — every field on every
@@ -524,7 +533,7 @@ export async function getBatchFieldSummaries(documentIds: string[], schemaId: st
         fieldValueId: fv.id,
         fieldKey: fv.fieldKey,
         label: spec.label,
-        needsReview: fv.status === 'needs_review' || rowPendingFieldValueIds.has(fv.id),
+        status: bucketFieldStatus(fv.status, rowPendingFieldValueIds.has(fv.id)),
       });
     }
     // A field_value whose fieldKey doesn't match any CURRENT schema field (a
@@ -540,7 +549,7 @@ export async function getBatchFieldSummaries(documentIds: string[], schemaId: st
         fieldValueId: fv.id,
         fieldKey: fv.fieldKey,
         label: labelByKey.get(fv.fieldKey) ?? fv.fieldKey,
-        needsReview: fv.status === 'needs_review' || rowPendingFieldValueIds.has(fv.id),
+        status: bucketFieldStatus(fv.status, rowPendingFieldValueIds.has(fv.id)),
       });
     }
     result.set(documentId, summaries);

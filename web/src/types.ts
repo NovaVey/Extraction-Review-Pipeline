@@ -90,14 +90,17 @@ export interface ReviewSession {
 }
 
 // Mirrors api/src/review/queue.ts's BatchFieldSummary — one entry per reviewable
-// field on a document, always present regardless of resolution status (the batch
-// dropdown intentionally keeps every field listed even once resolved, so a reviewer
-// can jump back and double-check or undo any decision at any time).
+// field on a document, always present regardless of resolution status (the Queue
+// Progress stat rows intentionally keep every field listed even once resolved, so a
+// reviewer can jump back and double-check or undo any decision at any time). `status`
+// is already bucketed server-side (a table field with a still-pending row buckets as
+// needs_review even though its own field-level status is auto_accepted) using the
+// same precedence as ReviewQueueStats, so the two never disagree about a count.
 export interface BatchFieldSummary {
   fieldValueId: string;
   fieldKey: string;
   label: string;
-  needsReview: boolean;
+  status: 'needs_review' | 'auto_accepted' | 'confirmed' | 'corrected';
 }
 
 // Mirrors api/src/routes/batches.ts's GET /batches/:id response — a trimmed,
