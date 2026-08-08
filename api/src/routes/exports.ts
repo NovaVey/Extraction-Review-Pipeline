@@ -30,9 +30,23 @@ export async function exportRoutes(app: FastifyInstance) {
       [exportRow] = await db.insert(exportsTable).values({ batchId, target, idempotencyKey, status: 'processing' }).returning();
     } catch (err) {
       if (isUniqueViolation(err)) {
-        // Retrying with the same key returns whatever already happened rather than
-        // erroring — that's the point of an idempotency key, not a real conflict.
         const [existing] = await db.select().from(exportsTable).where(eq(exportsTable.idempotencyKey, idempotencyKey)).limit(1);
+        // The unique constraint is only on idempotencyKey itself, not (batchId,
+        // idempotencyKey) — a key reused across two DIFFERENT batches (a stale
+        // client retry, or two callers/tabs that happen to collide) would otherwise
+        // silently hand back whichever batch's export got there first, wrong batch
+        // and all, with no indication anything was off. Only a genuine same-batch
+        // replay is the idempotent case this was meant to short-circuit for.
+        if (!existing) throw err;
+        if (existing.batchId !== batchId) {
+          return reply.code(409).send({
+            error: 'idempotency_key_conflict',
+            details: `idempotencyKey ${idempotencyKey} was already used for a different batch`,
+          });
+        }
+        // Retrying with the same key on the same batch returns whatever already
+        // happened rather than erroring — that's the point of an idempotency key,
+        // not a real conflict.
         return reply.code(200).send(existing);
       }
       if (isForeignKeyViolation(err)) {
