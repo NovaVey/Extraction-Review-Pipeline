@@ -75,6 +75,16 @@ const itemD = {
   validatorStatus: 'valid', status: 'needs_review', rows: null, pages: [pageC],
 };
 
+// Snapshotted once, right after itemC.rows is built above and before any request
+// can possibly mutate it — every row (not just row-3) is reachable and mutable via
+// the unguarded /api/review/rows/:id/{accept,correct,undo} handlers below (they
+// look up any row by id with no status-transition guard, unlike the real backend's
+// acceptRow/correctRow), so every row needs its own restore point, not just the one
+// that starts out needing review.
+const ROWS_INITIAL = new Map(
+  itemC.rows.map((r) => [r.id, { cells: { ...r.cells }, confidence: r.confidence, confidenceParts: r.confidenceParts, status: r.status }]),
+);
+
 let itemAStatus, itemBStatus, itemDStatus, archivedDocumentIds;
 
 function resetState() {
@@ -82,11 +92,17 @@ function resetState() {
   itemBStatus = 'needs_review';
   itemDStatus = 'needs_review';
   archivedDocumentIds = new Set();
-  const row3 = itemC.rows[2];
-  row3.cells = { ...ROW3_INITIAL.cells };
-  row3.confidence = ROW3_INITIAL.confidence;
-  row3.confidenceParts = ROW3_INITIAL.confidenceParts;
-  row3.status = ROW3_INITIAL.status;
+  // Previously only row-3 (the one that starts needs_review) was restored — rows
+  // 1, 2, and 4 start auto_accepted but a stray request could still flip any of
+  // them to confirmed/corrected/needs_review, and those mutations were never
+  // reset, permanently corrupting the shared demo state for every visitor after.
+  for (const row of itemC.rows) {
+    const initial = ROWS_INITIAL.get(row.id);
+    row.cells = { ...initial.cells };
+    row.confidence = initial.confidence;
+    row.confidenceParts = initial.confidenceParts;
+    row.status = initial.status;
+  }
   console.log('demo state reset');
 }
 resetState();
@@ -130,10 +146,24 @@ function computeStats() {
 }
 
 function readBody(req) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     let data = '';
     req.on('data', (chunk) => (data += chunk));
-    req.on('end', () => resolve(data ? JSON.parse(data) : {}));
+    req.on('error', reject);
+    req.on('end', () => {
+      if (!data) return resolve({});
+      try {
+        resolve(JSON.parse(data));
+      } catch {
+        // A rejection here propagates up through handleApi's await into the
+        // server's own request-handler try/catch below, which turns it into a 400
+        // instead of an uncaught SyntaxError. Node's `req.on('end', ...)` callback
+        // has no caller to catch a thrown error — an uncaught throw there used to
+        // crash this whole shared demo process for every concurrent visitor, not
+        // just fail the one malformed request.
+        reject(new Error('invalid_json'));
+      }
+    });
   });
 }
 
@@ -263,14 +293,28 @@ async function handleApi(req, res, apiPath) {
 }
 
 const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url, `http://localhost:${PORT}`);
-  if (url.pathname.startsWith('/api/')) {
-    return handleApi(req, res, url.pathname.slice(4));
+  // No error boundary at all here used to mean ANY handler throwing (readBody's
+  // JSON.parse being the concrete case, but not the only possible one) surfaced as
+  // an unhandled rejection in this async callback — Node treats that as fatal by
+  // default and crashes the whole shared process, taking down the demo for every
+  // other concurrent visitor along with the one request that actually misbehaved.
+  try {
+    const url = new URL(req.url, `http://localhost:${PORT}`);
+    if (url.pathname.startsWith('/api/')) {
+      return await handleApi(req, res, url.pathname.slice(4));
+    }
+    if (url.pathname === '/healthz') {
+      return sendJson(res, 200, { status: 'ok' });
+    }
+    return await serveStatic(req, res);
+  } catch (err) {
+    console.error('request handler error:', err);
+    if (res.headersSent) return;
+    if (err instanceof Error && err.message === 'invalid_json') {
+      return sendJson(res, 400, { error: 'invalid_json' });
+    }
+    return sendJson(res, 500, { error: 'internal_error' });
   }
-  if (url.pathname === '/healthz') {
-    return sendJson(res, 200, { status: 'ok' });
-  }
-  return serveStatic(req, res);
 });
 
 server.listen(PORT, () => console.log(`live demo server on http://localhost:${PORT}`));
