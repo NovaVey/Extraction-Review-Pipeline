@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { getNextReviewItem, getReviewQueueStats } from '../review/queue.js';
+import { getNextReviewItem, getReviewItemForDocument, getReviewQueueStats, NoReviewableFieldError } from '../review/queue.js';
 import {
   acceptField,
   correctField,
@@ -17,6 +17,7 @@ import {
   TableFieldUndoUnsupportedError,
   UnknownColumnKeyError,
 } from '../review/actions.js';
+import { DocumentNotFoundError } from '../documents/archive.js';
 import { isForeignKeyViolation } from '../lib/pgErrors.js';
 
 const StartSessionBody = z.object({
@@ -94,6 +95,22 @@ export async function reviewRoutes(app: FastifyInstance) {
     }
     const item = await getNextReviewItem(parsed.data.batchId);
     reply.send({ item });
+  });
+
+  // Powers the batch-documents sidebar's "jump to this document" action — unlike
+  // /review/next, always resolves to a real item for a fine, non-archived document
+  // (see getReviewItemForDocument's own fallback), so a bare 200 { item: null } is
+  // never a valid response here the way it is for /review/next's "queue is empty"
+  // case; a document with nothing to show is a distinct 404 instead.
+  app.get<{ Params: { id: string } }>('/review/documents/:id', async (req, reply) => {
+    try {
+      const item = await getReviewItemForDocument(req.params.id);
+      reply.send({ item });
+    } catch (err) {
+      if (err instanceof DocumentNotFoundError) return reply.code(404).send({ error: 'document_not_found' });
+      if (err instanceof NoReviewableFieldError) return reply.code(404).send({ error: 'no_review_item_found' });
+      throw err;
+    }
   });
 
   app.post<{ Params: { id: string } }>('/review/fields/:id/accept', async (req, reply) => {
