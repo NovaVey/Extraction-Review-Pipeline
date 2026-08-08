@@ -2,11 +2,18 @@ import { eq, and, or, inArray, notInArray, isNotNull, asc, desc } from 'drizzle-
 import { db } from '../db/client.js';
 import { documents, extractions, extractionSchemas, fieldValues, fieldValueRows, pages } from '../db/schema.js';
 import type { FieldSpec, FieldType } from '../extract/schema.js';
+import { DocumentNotFoundError } from '../documents/archive.js';
+import { RESOLVED_STATUSES } from './status.js';
 
 export interface ReviewItemRow {
   id: string;
   rowIndex: number;
   cells: Record<string, unknown>;
+  // The reviewer-confirmed cells, if this row has already been resolved via
+  // correctRow — null otherwise. Only meaningful when getReviewItemForDocument's
+  // schema-order fallback surfaces an already-resolved row; getNextReviewItem never
+  // did (it only ever surfaced needs_review rows), so this was never needed before.
+  finalCells: Record<string, unknown> | null;
   confidence: string;
   confidenceParts: unknown;
   status: string;
@@ -24,6 +31,9 @@ export interface ReviewItem {
   description: string;
   rawValue: string | null;
   normalizedValue: string | null;
+  // The reviewer-confirmed value, if this field has already been resolved via
+  // correctField — null otherwise. See ReviewItemRow.finalCells for why this exists.
+  finalValue: string | null;
   confidence: string;
   confidenceParts: unknown;
   validatorStatus: string;
@@ -31,6 +41,14 @@ export interface ReviewItem {
   rows: ReviewItemRow[] | null;
   pages: Array<{ id: string; pageNumber: number; width: number; height: number }>;
 }
+
+// undoField/undoRow-specific in review/actions.ts, but the same "not resolved by a
+// review action" absence shows up here too — thrown by getReviewItemForDocument when
+// a document has no extraction at all, or its extraction produced zero field_values
+// (e.g. every sample failed to parse — see extract/run.ts). Distinct from
+// DocumentNotFoundError so routes/review.ts can report a different code (the
+// document itself is fine; there's just nothing to review on it yet).
+export class NoReviewableFieldError extends Error {}
 
 interface LatestExtractionRef {
   id: string;
@@ -111,11 +129,27 @@ export async function getNextReviewItem(batchId?: string): Promise<ReviewItem | 
   if (!chosen || !chosenExtraction) return null;
 
   const [document] = await db.select().from(documents).where(eq(documents.id, chosen.documentId)).limit(1);
+  return buildReviewItem(chosen, chosenExtraction, document);
+}
+
+type FieldValueRow = typeof fieldValues.$inferSelect;
+type DocumentRow = typeof documents.$inferSelect;
+
+// Shared by getNextReviewItem and getReviewItemForDocument — both end up with a
+// chosen field_values row + the extraction it belongs to + its document, and need
+// the identical shape built from there (schema/fieldSpec resolution, table-row
+// fetching, page list). Takes `document` as a parameter rather than re-querying it
+// internally — every call site already has it in hand from its own selection logic.
+async function buildReviewItem(
+  chosen: FieldValueRow,
+  chosenExtraction: LatestExtractionRef,
+  document: DocumentRow | undefined,
+): Promise<ReviewItem> {
   const [schemaRow] = await db.select().from(extractionSchemas).where(eq(extractionSchemas.id, chosenExtraction.schemaId)).limit(1);
   const pageRows = await db.select().from(pages).where(eq(pages.documentId, chosen.documentId)).orderBy(asc(pages.pageNumber));
 
   const fields = (schemaRow?.fields as FieldSpec[] | undefined) ?? [];
-  const fieldSpec = fields.find((f) => f.key === chosen!.fieldKey);
+  const fieldSpec = fields.find((f) => f.key === chosen.fieldKey);
 
   let rows: ReviewItemRow[] | null = null;
   if (chosen.fieldType === 'table') {
@@ -129,6 +163,7 @@ export async function getNextReviewItem(batchId?: string): Promise<ReviewItem | 
       id: r.id,
       rowIndex: r.rowIndex,
       cells: r.cells as Record<string, unknown>,
+      finalCells: (r.finalCells as Record<string, unknown> | null) ?? null,
       confidence: r.confidence,
       confidenceParts: r.confidenceParts,
       status: r.status,
@@ -147,6 +182,7 @@ export async function getNextReviewItem(batchId?: string): Promise<ReviewItem | 
     description: fieldSpec?.description ?? '',
     rawValue: chosen.rawValue,
     normalizedValue: chosen.normalizedValue,
+    finalValue: chosen.finalValue,
     confidence: chosen.confidence,
     confidenceParts: chosen.confidenceParts,
     validatorStatus: chosen.validatorStatus,
@@ -154,6 +190,75 @@ export async function getNextReviewItem(batchId?: string): Promise<ReviewItem | 
     rows,
     pages: pageRows.map((p) => ({ id: p.id, pageNumber: p.pageNumber, width: p.width, height: p.height })),
   };
+}
+
+// Confidence-then-id comparator matching getNextReviewItem's own
+// `.orderBy(asc(fieldValues.confidence), asc(fieldValues.id))` — replicated in JS
+// here rather than issuing a second SQL query, since a single document's field set
+// is small (at most ~9 rows per the real schemas in scripts/fieldSpecs.ts).
+function byConfidenceThenId(a: FieldValueRow, b: FieldValueRow): number {
+  const byConfidence = Number(a.confidence) - Number(b.confidence);
+  if (byConfidence !== 0) return byConfidence;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+// Powers the batch-documents sidebar's "jump to this document" action — unlike
+// getNextReviewItem (which scans globally and returns null when nothing qualifies),
+// this always resolves to SOME field on the given document: it prefers one that
+// still needs review, but falls back to the first field in the schema's declared
+// order when the document is fully resolved, so a reviewer can still open (and
+// double-check) a document with nothing currently outstanding.
+export async function getReviewItemForDocument(documentId: string): Promise<ReviewItem> {
+  const [document] = await db.select().from(documents).where(eq(documents.id, documentId)).limit(1);
+  if (!document || document.archivedAt) {
+    throw new DocumentNotFoundError(`Document not found: ${documentId}`);
+  }
+
+  const latestExtraction = await getLatestExtraction(documentId, new Map());
+  if (!latestExtraction) {
+    throw new NoReviewableFieldError(`Document ${documentId} has never been extracted`);
+  }
+
+  // Filtered by extractionId, NOT documentId — documentId is denormalized onto
+  // every historical field_values row, so filtering by it alone would silently
+  // resurface a superseded extraction's stale data after a re-extract (the same
+  // trap getNextReviewItem's getLatestExtraction check exists to avoid).
+  const fieldValueRowsForExtraction = await db
+    .select()
+    .from(fieldValues)
+    .where(eq(fieldValues.extractionId, latestExtraction.id));
+  if (fieldValueRowsForExtraction.length === 0) {
+    throw new NoReviewableFieldError(`Document ${documentId}'s current extraction has no field values`);
+  }
+
+  const needsReviewRows = await db
+    .select({ fieldValueId: fieldValueRows.fieldValueId })
+    .from(fieldValueRows)
+    .where(and(eq(fieldValueRows.status, 'needs_review'), inArray(fieldValueRows.fieldValueId, fieldValueRowsForExtraction.map((f) => f.id))));
+  const rowPendingFieldValueIds = new Set(needsReviewRows.map((r) => r.fieldValueId));
+
+  const needsReviewCandidates = fieldValueRowsForExtraction
+    .filter((fv) => fv.status === 'needs_review' || rowPendingFieldValueIds.has(fv.id))
+    .sort(byConfidenceThenId);
+
+  let chosen: FieldValueRow;
+  if (needsReviewCandidates.length > 0) {
+    chosen = needsReviewCandidates[0];
+  } else {
+    // Fully resolved document — fall back to the first field in the schema's own
+    // declared order that actually has a field_value, regardless of its status.
+    const [schemaRow] = await db.select().from(extractionSchemas).where(eq(extractionSchemas.id, latestExtraction.schemaId)).limit(1);
+    const schemaFields = (schemaRow?.fields as FieldSpec[] | undefined) ?? [];
+    const byFieldKey = new Map(fieldValueRowsForExtraction.map((fv) => [fv.fieldKey, fv]));
+    const firstDeclared = schemaFields.map((f) => byFieldKey.get(f.key)).find((fv): fv is FieldValueRow => fv !== undefined);
+    // Every field_value's fieldKey should exist in the schema it was extracted
+    // against, but degrade to the first field_value found rather than throwing if
+    // a hand-edited/legacy row somehow doesn't match — same defensive spirit as
+    // buildReviewItem's `fieldSpec?.label ?? chosen.fieldKey` fallback.
+    chosen = firstDeclared ?? fieldValueRowsForExtraction[0];
+  }
+
+  return buildReviewItem(chosen, latestExtraction, document);
 }
 
 export interface ReviewQueueStats {
@@ -235,4 +340,74 @@ export async function getNeedsReviewDocumentIds(): Promise<Set<string>> {
     if (fv.status === 'needs_review' || rowPendingFieldValueIds.has(fv.id)) needsReviewDocumentIds.add(fv.documentId);
   }
   return needsReviewDocumentIds;
+}
+
+// A per-document display name for the batch-documents sidebar — "invoice_clean_01.pdf"
+// tells a reviewer nothing; the invoice number or vendor name on it does. Only
+// `type === 'string'` schema fields are considered, in the schema's OWN declared
+// order — verified against scripts/fieldSpecs.ts: for every real doc type the first
+// declared field is always the document's own identifier (invoice_number/
+// receipt_number/po_number) and the second is the counterparty name (vendor_name/
+// merchant_name/vendor_name), so "first non-null string field in schema order" finds
+// the most identifying value without hardcoding specific field keys. (purchase_order
+// also has a third, optional string field, approved_by, at the end — the plain
+// ordered walk already handles that correctly, it just loses every tie-break to the
+// two fields ahead of it.)
+export async function getDocumentDisplayNames(documentIds: string[], schemaId: string): Promise<Map<string, string | null>> {
+  if (documentIds.length === 0) return new Map();
+
+  const [schemaRow] = await db.select({ fields: extractionSchemas.fields }).from(extractionSchemas).where(eq(extractionSchemas.id, schemaId)).limit(1);
+  const schemaFields = (schemaRow?.fields as FieldSpec[] | undefined) ?? [];
+  const stringFieldKeys = schemaFields.filter((f) => f.type === 'string').map((f) => f.key);
+  if (stringFieldKeys.length === 0) return new Map(documentIds.map((id) => [id, null]));
+
+  const relevantExtractions = await db
+    .select({ documentId: extractions.documentId, id: extractions.id, startedAt: extractions.startedAt })
+    .from(extractions)
+    .where(inArray(extractions.documentId, documentIds));
+  const latestExtractionIdByDocument = new Map<string, string>();
+  const startedAtByDocument = new Map<string, Date>();
+  for (const e of relevantExtractions) {
+    const existing = startedAtByDocument.get(e.documentId);
+    if (!existing || e.startedAt > existing) {
+      startedAtByDocument.set(e.documentId, e.startedAt);
+      latestExtractionIdByDocument.set(e.documentId, e.id);
+    }
+  }
+  const latestExtractionIds = [...new Set(latestExtractionIdByDocument.values())];
+  if (latestExtractionIds.length === 0) return new Map(documentIds.map((id) => [id, null]));
+
+  const relevantFieldValues = await db
+    .select({ documentId: fieldValues.documentId, fieldKey: fieldValues.fieldKey, status: fieldValues.status, normalizedValue: fieldValues.normalizedValue, finalValue: fieldValues.finalValue })
+    .from(fieldValues)
+    .where(and(inArray(fieldValues.extractionId, latestExtractionIds), inArray(fieldValues.fieldKey, stringFieldKeys)));
+
+  const byDocument = new Map<string, typeof relevantFieldValues>();
+  for (const fv of relevantFieldValues) {
+    const list = byDocument.get(fv.documentId) ?? [];
+    list.push(fv);
+    byDocument.set(fv.documentId, list);
+  }
+
+  const names = new Map<string, string | null>();
+  for (const documentId of documentIds) {
+    const fieldsForDocument = byDocument.get(documentId) ?? [];
+    let name: string | null = null;
+    for (const key of stringFieldKeys) {
+      const fv = fieldsForDocument.find((f) => f.fieldKey === key);
+      if (!fv) continue;
+      // Always falls back to normalizedValue when unresolved rather than nulling it
+      // out — unlike export/build.ts's identical-looking pattern, which nulls
+      // unverified data on purpose for data-export correctness. A display name has
+      // no such requirement, and nulling it here would blank out most documents,
+      // which haven't been reviewed yet.
+      const value = RESOLVED_STATUSES.has(fv.status) ? (fv.finalValue ?? fv.normalizedValue) : fv.normalizedValue;
+      if (value) {
+        name = value;
+        break;
+      }
+    }
+    names.set(documentId, name);
+  }
+  return names;
 }
