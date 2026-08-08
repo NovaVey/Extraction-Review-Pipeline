@@ -42,6 +42,26 @@ describe('stripMoneySymbols', () => {
     expect(stripMoneySymbols('$1,234.56')).toBe('1234.56');
     expect(stripMoneySymbols('-$5.00')).toBe('-5.00');
   });
+
+  // Regression: accounting notation prints a negative/credit amount in parentheses
+  // — naively stripping every non [0-9.-] character discarded the parens along
+  // with the sign, turning "($54.00)" into the positive string "54.00".
+  it('converts accounting-style parenthetical negative notation to a leading minus', () => {
+    expect(stripMoneySymbols('($54.00)')).toBe('-54.00');
+    expect(stripMoneySymbols('($1,234.56)')).toBe('-1234.56');
+  });
+
+  it('does not double the sign when a parenthetical value already carries its own minus', () => {
+    expect(stripMoneySymbols('(-$54.00)')).toBe('-54.00');
+  });
+
+  it('tolerates surrounding whitespace around the parentheses', () => {
+    expect(stripMoneySymbols('  ($54.00)  ')).toBe('-54.00');
+  });
+
+  it('does not treat a stray unrelated paren as parenthetical negative notation', () => {
+    expect(stripMoneySymbols('$54.00 (approx)')).toBe('54.00');
+  });
 });
 
 describe('parseMoney', () => {

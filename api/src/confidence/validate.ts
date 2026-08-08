@@ -3,7 +3,20 @@ import type { FieldType } from '../extract/schema.js';
 export type ValidatorStatus = 'valid' | 'invalid' | 'missing';
 
 export function stripMoneySymbols(rawValue: string): string {
-  return rawValue.replace(/[^0-9.-]/g, '');
+  const trimmed = rawValue.trim();
+  // Accounting notation prints a negative/credit amount wrapped in parentheses,
+  // e.g. "($54.00)" for -$54.00 — stripping every non [0-9.-] character (the rest
+  // of this function) discards the parens along with the currency symbol, losing
+  // the sign entirely and silently turning a negative amount into a wrong positive
+  // one. Detected structurally (starts with '(' AND ends with ')') rather than just
+  // checking the characters exist anywhere, so a stray unrelated paren in a
+  // malformed value doesn't false-positive into flipping the sign.
+  const isParenthetical = trimmed.startsWith('(') && trimmed.endsWith(')');
+  const stripped = trimmed.replace(/[^0-9.-]/g, '');
+  if (!isParenthetical) return stripped;
+  // The inner content can rarely already carry its own '-' (e.g. "(-$54.00)") —
+  // normalize to exactly one leading '-' rather than risking a doubled sign.
+  return stripped.startsWith('-') ? stripped : `-${stripped}`;
 }
 
 // Generalizes the per-field-type format check so it can validate both top-level scalar

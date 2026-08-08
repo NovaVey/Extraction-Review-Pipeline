@@ -47,25 +47,45 @@ export async function extractSample(params: {
   }
   content.push({ type: 'text', text: 'Extract the fields defined by the response schema from this document.' });
 
-  const message = await client.messages.parse({
-    model: env.EXTRACTION_MODEL,
-    max_tokens: 8192,
-    system: SYSTEM_PROMPT,
-    thinking: { type: 'adaptive' },
-    messages: [{ role: 'user', content }],
-    output_config: { format: { type: 'json_schema', schema } },
-  });
+  try {
+    const message = await client.messages.parse({
+      model: env.EXTRACTION_MODEL,
+      max_tokens: 8192,
+      system: SYSTEM_PROMPT,
+      thinking: { type: 'adaptive' },
+      messages: [{ role: 'user', content }],
+      output_config: { format: { type: 'json_schema', schema } },
+    });
 
-  return {
-    // parsed_output is statically typed `null` here because we pass a plain JSON
-    // Schema rather than a Zod-derived AutoParseableOutputFormat (the SDK can only
-    // infer the type from the latter) — but client.messages.parse()'s runtime parser
-    // (api/lib/parser.js) falls back to a plain JSON.parse() of the text block for any
-    // json_schema format, Zod-derived or not, so this is populated correctly at runtime.
-    parsed: message.parsed_output as Record<string, unknown> | null,
-    rawResponse: message,
-    inputTokens: message.usage.input_tokens,
-    outputTokens: message.usage.output_tokens,
-    stopReason: message.stop_reason,
-  };
+    return {
+      // parsed_output is statically typed `null` here because we pass a plain JSON
+      // Schema rather than a Zod-derived AutoParseableOutputFormat (the SDK can only
+      // infer the type from the latter) — but client.messages.parse()'s runtime parser
+      // (api/lib/parser.js) falls back to a plain JSON.parse() of the text block for any
+      // json_schema format, Zod-derived or not, so this is populated correctly at runtime.
+      parsed: message.parsed_output as Record<string, unknown> | null,
+      rawResponse: message,
+      inputTokens: message.usage.input_tokens,
+      outputTokens: message.usage.output_tokens,
+      stopReason: message.stop_reason,
+    };
+  } catch (err) {
+    // client.messages.parse() throws (rather than resolving with parsed_output: null)
+    // when its own client-side JSON parse of the model's text output fails — plausible
+    // whenever a response gets cut off at the hard-coded max_tokens ceiling above. This
+    // is one of N concurrent samples (see extract/run.ts's Promise.all over SAMPLE_COUNT
+    // calls) — the whole design tolerates some samples failing to parse, but only if a
+    // single throw here doesn't take every other in-flight sample down with it. Reported
+    // as a gracefully-failed sample (parsed: null) instead, exactly like a sample whose
+    // JSON happened to parse but produced nothing usable — extract/run.ts's
+    // hasParsedOutput filter already treats that as "this sample doesn't count".
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      parsed: null,
+      rawResponse: { error: message },
+      inputTokens: 0,
+      outputTokens: 0,
+      stopReason: 'parse_error',
+    };
+  }
 }
