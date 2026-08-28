@@ -1,4 +1,9 @@
-import { defineConfig, loadEnv } from 'vite'
+// defineConfig from 'vitest/config' rather than plain 'vite' -- it re-exports vite's
+// own config machinery plus additionally types the `test` field below, so this one
+// file covers both `vite dev`/`vite build` and `vitest run` without a second config
+// file. loadEnv itself isn't re-exported there, so it still comes from 'vite'.
+import { loadEnv } from 'vite'
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -27,6 +32,10 @@ export default defineConfig(({ mode }) => {
           ...(apiKey && { headers: { 'x-api-key': apiKey } }),
         },
       },
+    },
+    test: {
+      environment: 'jsdom',
+      setupFiles: ['./src/setupTests.ts'],
     },
   };
 })
