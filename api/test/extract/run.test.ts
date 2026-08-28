@@ -472,4 +472,111 @@ describe('extractDocument', () => {
     expect(mocks.insertedFieldValueRows).toHaveLength(1);
     expect(mocks.insertedFieldValueRows[0]).toMatchObject({ confidence: '1', status: 'auto_accepted' });
   });
+
+  it('scores each line-item row on its own agreement, so one genuinely disputed row does not drag down an unrelated, unanimous row', async () => {
+    // Row 0 (widget) is identical across all three samples. Row 1 (gadget) has its
+    // `amount` cell disagree in exactly one sample -- previously, voting on the
+    // whole serialized array would have made ALL THREE samples' arrays unique
+    // (any one differing cell anywhere changes the whole array's key), collapsing
+    // agreement to 1/3 for the ENTIRE table, including row 0 despite it having
+    // zero actual disagreement.
+    mocks.extractSample
+      .mockResolvedValueOnce({
+        parsed: {
+          invoice_number: 'INV-1',
+          line_items: [
+            { description: 'widget', quantity: 1, unit_price: '10.00', amount: '10.00' },
+            { description: 'gadget', quantity: 2, unit_price: '25.00', amount: '50.00' },
+          ],
+        },
+        rawResponse: { id: 'r1' },
+        inputTokens: 100,
+        outputTokens: 20,
+        stopReason: 'end_turn',
+      })
+      .mockResolvedValueOnce({
+        parsed: {
+          invoice_number: 'INV-1',
+          line_items: [
+            { description: 'widget', quantity: 1, unit_price: '10.00', amount: '10.00' },
+            { description: 'gadget', quantity: 2, unit_price: '25.00', amount: '50.00' },
+          ],
+        },
+        rawResponse: { id: 'r2' },
+        inputTokens: 100,
+        outputTokens: 20,
+        stopReason: 'end_turn',
+      })
+      .mockResolvedValueOnce({
+        parsed: {
+          invoice_number: 'INV-1',
+          line_items: [
+            { description: 'widget', quantity: 1, unit_price: '10.00', amount: '10.00' },
+            { description: 'gadget', quantity: 2, unit_price: '25.00', amount: '55.00' }, // disagrees on amount only
+          ],
+        },
+        rawResponse: { id: 'r3' },
+        inputTokens: 100,
+        outputTokens: 20,
+        stopReason: 'end_turn',
+      });
+
+    await extractDocument('doc-1');
+
+    expect(mocks.insertedFieldValueRows).toHaveLength(2);
+    const row0 = mocks.insertedFieldValueRows.find((r) => r.rowIndex === 0);
+    const row1 = mocks.insertedFieldValueRows.find((r) => r.rowIndex === 1);
+
+    // Row 0: every sample agreed on every cell -- full confidence, unaffected by
+    // row 1's disagreement.
+    expect(row0).toMatchObject({ confidence: '1', status: 'auto_accepted' });
+    // Row 1: 2 of 3 samples agreed on `amount` -- flagged on its own terms, not
+    // dragged up or down by row 0's unrelated agreement.
+    expect(row1).toMatchObject({ confidence: (2 / 3).toString(), status: 'needs_review' });
+
+    // The field-level row is capped by its weakest row (2/3), not the old whole-
+    // array vote (which would have been 1/3 here, since every sample's serialized
+    // array differs from every other once row 1's amount differs).
+    const lineItemsRow = mocks.insertedFieldValues.find((v) => v.fieldKey === 'line_items');
+    expect(lineItemsRow).toMatchObject({ confidence: (2 / 3).toString() });
+  });
+
+  it('falls back to whole-array voting when samples disagree on the number of line items, rather than guessing an alignment', async () => {
+    mocks.extractSample
+      .mockResolvedValueOnce({
+        parsed: { invoice_number: 'INV-1', line_items: [{ description: 'widget', quantity: 1, unit_price: '10.00', amount: '10.00' }] },
+        rawResponse: { id: 'r1' },
+        inputTokens: 100,
+        outputTokens: 20,
+        stopReason: 'end_turn',
+      })
+      .mockResolvedValueOnce({
+        parsed: { invoice_number: 'INV-1', line_items: [{ description: 'widget', quantity: 1, unit_price: '10.00', amount: '10.00' }] },
+        rawResponse: { id: 'r2' },
+        inputTokens: 100,
+        outputTokens: 20,
+        stopReason: 'end_turn',
+      })
+      .mockResolvedValueOnce({
+        parsed: {
+          invoice_number: 'INV-1',
+          line_items: [
+            { description: 'widget', quantity: 1, unit_price: '10.00', amount: '10.00' },
+            { description: 'extra phantom row', quantity: 1, unit_price: '1.00', amount: '1.00' },
+          ],
+        },
+        rawResponse: { id: 'r3' },
+        inputTokens: 100,
+        outputTokens: 20,
+        stopReason: 'end_turn',
+      });
+
+    await extractDocument('doc-1');
+
+    // 2 of 3 samples agree on a single-row table -- majority wins even though row
+    // counts disagree across samples, rather than crashing or silently misaligning.
+    expect(mocks.insertedFieldValueRows).toHaveLength(1);
+    const lineItemsRow = mocks.insertedFieldValues.find((v) => v.fieldKey === 'line_items');
+    expect(lineItemsRow).toMatchObject({ confidence: (2 / 3).toString() });
+  });
 });

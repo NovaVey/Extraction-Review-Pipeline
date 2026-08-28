@@ -72,6 +72,13 @@ interface TableFieldResult {
   kind: 'table';
   field: FieldSpec;
   majorityRows: Record<string, unknown>[];
+  // Each row's OWN agreement, independent of every other row -- index-aligned with
+  // majorityRows. Fixes the bug where one divergent row used to drag down every
+  // other row's confidence by forcing them all to share a single whole-table number.
+  rowAgreements: number[];
+  // A representative agreement for the table as a whole (used for the field-level
+  // fieldValues row, not any individual row) -- see extractDocument for how it's
+  // derived.
   agreement: number;
   validatorStatus: ValidatorStatus;
 }
@@ -158,22 +165,77 @@ export async function extractDocument(documentId: string, options?: ExtractDocum
   // can be inserted until the whole schema has been resolved.
   const passResults: FieldPassResult[] = fields.map((field) => {
     if (field.type === 'table') {
-      const sampleArrays = successfulSamples.map((s) => (s.parsed[field.key] as unknown[] | null | undefined) ?? []);
+      const sampleArrays = successfulSamples.map((s) => (s.parsed[field.key] as Record<string, unknown>[] | null | undefined) ?? []);
       const columns = field.columns ?? [];
-      // Vote on semantic agreement, not literal string equality: a row transcribed
-      // identically but with a differently-formatted money/date cell across samples
-      // ("$9.99" vs "9.99") would otherwise count as full disagreement for the whole
-      // array, even though every cell actually agrees once normalized.
-      // \x01/\x02 (rather than a plain comma or space) so a cell value that
-      // happens to contain the separator can't make two different rows collide.
-      const canonicalizeRow = (row: unknown) =>
-        columns.map((c) => canonicalizeValue(c.type, (row as Record<string, unknown> | null | undefined)?.[c.key])).join('\x02');
-      const canonicalizeArray = (rows: unknown[]) => rows.map(canonicalizeRow).join('\x01');
-      const { value: majorityRows, agreement } = pickMajority(sampleArrays, canonicalizeArray);
+      const rowCounts = sampleArrays.map((a) => a.length);
+      const rowCountsAgree = rowCounts.every((c) => c === rowCounts[0]);
+
+      let majorityRows: Record<string, unknown>[];
+      let rowAgreements: number[];
+      let agreement: number;
+
+      if (rowCountsAgree && rowCounts[0] === 0) {
+        // Every sample agrees the table is empty -- unanimous, nothing to vote on.
+        majorityRows = [];
+        rowAgreements = [];
+        agreement = 1;
+      } else if (rowCountsAgree) {
+        // Vote independently per row-position, per-column, rather than on the whole
+        // serialized array: previously, ANY single differing cell anywhere (a
+        // transcription difference, whitespace, a formatting quirk) made the whole
+        // array unique, collapsing agreement to the same low number for every row --
+        // including rows the samples had actually agreed on perfectly. Per-cell
+        // voting means a row's own confidence reflects only its own cells.
+        const rowCount = rowCounts[0];
+        majorityRows = [];
+        rowAgreements = [];
+        for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+          const cells: Record<string, unknown> = {};
+          let minCellAgreement = 1;
+          for (const column of columns) {
+            const cellSamples = sampleArrays.map((arr) => arr[rowIndex]?.[column.key]);
+            const picked = pickMajority(cellSamples, (v) => canonicalizeValue(column.type, v));
+            cells[column.key] = picked.value;
+            // A row can't be "mostly right" -- the same reasoning already applied to
+            // format-validity below (one invalid cell taints the row) applies to
+            // agreement too, so the row's own agreement is capped by its weakest cell.
+            minCellAgreement = Math.min(minCellAgreement, picked.agreement);
+          }
+          majorityRows.push(cells);
+          rowAgreements.push(minCellAgreement);
+        }
+        // The field-level row represents the table as a whole; capped by its weakest
+        // row for the same "one bad spot taints the aggregate" reasoning, so the
+        // table-level field never reads as auto-acceptable while a row within it is
+        // genuinely in dispute.
+        agreement = Math.min(...rowAgreements);
+      } else {
+        // Samples disagree on row COUNT itself -- table structure, not just cell
+        // content, is in dispute. Aligning rows one-to-one across a different number
+        // of them per sample needs a fuzzy matching strategy (e.g. by a stable key
+        // like description+amount) this function doesn't attempt; fall back to
+        // voting on the whole serialized (canonicalized) array, exactly as before
+        // per-row voting existed, so this rarer case is still a well-defined
+        // majority-of-N decision rather than a guessed alignment.
+        // \x01/\x02 (rather than a plain comma or space) so a cell value that
+        // happens to contain the separator can't make two different rows collide.
+        const canonicalizeRow = (row: Record<string, unknown> | undefined) =>
+          columns.map((c) => canonicalizeValue(c.type, row?.[c.key])).join('\x02');
+        const canonicalizeArray = (rows: Record<string, unknown>[]) => rows.map(canonicalizeRow).join('\x01');
+        const picked = pickMajority(sampleArrays, canonicalizeArray);
+        majorityRows = picked.value;
+        agreement = picked.agreement;
+        // No independent per-row signal is available in this fallback -- the whole-
+        // table agreement applies uniformly to every row, same as the pre-per-row-
+        // voting behavior.
+        rowAgreements = majorityRows.map(() => picked.agreement);
+      }
+
       return {
         kind: 'table',
         field,
-        majorityRows: majorityRows as Record<string, unknown>[],
+        majorityRows,
+        rowAgreements,
         agreement,
         validatorStatus: majorityRows.length > 0 ? 'valid' : 'missing',
       };
@@ -257,9 +319,13 @@ export async function extractDocument(documentId: string, options?: ExtractDocum
             }
             const rowValidatorStatus: ValidatorStatus = hasInvalid ? 'invalid' : hasMissingRequired ? 'missing' : 'valid';
 
+            // The row's OWN agreement (from its own cells), not the whole table's --
+            // see the table-branch comments above for why sharing one number across
+            // every row was the bug this replaces.
+            const rowAgreement = result.rowAgreements[rowIndex] ?? result.agreement;
             const rowCrossFieldChecks = crossFieldResults.perRowChecks[rowIndex] ?? [];
             const rowConfidence = computeConfidence({
-              sampleAgreement: result.agreement,
+              sampleAgreement: rowAgreement,
               validatorStatus: rowValidatorStatus,
               required: true,
               crossFieldChecks: rowCrossFieldChecks,
@@ -272,7 +338,7 @@ export async function extractDocument(documentId: string, options?: ExtractDocum
               cells,
               confidence: rowConfidence.toString(),
               confidenceParts: {
-                sampleAgreement: result.agreement,
+                sampleAgreement: rowAgreement,
                 validatorStatus: rowValidatorStatus,
                 crossFieldChecks: rowCrossFieldChecks,
               },
