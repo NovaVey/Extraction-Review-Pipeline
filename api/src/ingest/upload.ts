@@ -33,38 +33,57 @@ export interface IngestResult {
   deduped: boolean;
 }
 
+// A document stuck at a non-terminal status ('uploaded', neither 'processed' nor
+// 'failed') is genuinely ambiguous from a single snapshot: it might be actively
+// worked on right now by another in-flight request, or it might be the leftover of
+// a process that was killed/crashed/OOM'd mid-ingest with nothing left to ever
+// finish it (see the dedupe check below). Recency is the signal used to tell them
+// apart: this corpus's documents are at most a handful of pages, and even a worst-
+// case OCR pass per page (ocr.ts's own RECOGNIZE_TIMEOUT_MS) bounds a single
+// document's processing time to well under this window, so anything still stuck
+// here past 15 minutes is far more likely abandoned than merely slow. Exported so
+// tests can drive it exactly rather than guessing.
+export const STUCK_INGEST_THRESHOLD_MS = 15 * 60_000;
+
 export async function ingestDocument(params: IngestDocumentParams): Promise<IngestResult> {
   const sha256 = sha256Hex(params.buffer);
 
   const [existing] = await db
-    .select({ id: documents.id, status: documents.status })
+    .select({ id: documents.id, status: documents.status, uploadedAt: documents.uploadedAt })
     .from(documents)
     .where(and(eq(documents.batchId, params.batchId), eq(documents.sha256, sha256)))
     .limit(1);
-  if (existing && existing.status !== 'failed') {
-    return { documentId: existing.id, deduped: true };
-  }
   if (existing) {
-    // existing.status === 'failed': a previous ingest of these exact bytes failed
-    // partway through (see the catch block below) — that's not a successful
-    // dedupe hit, it's a document that was never actually usable. Retry cleanly
-    // instead of reporting false success. Deleting the old row first (rather than
-    // reusing its id) cascades to any partial `pages` rows it left behind
-    // (pages.documentId has onDelete: 'cascade' — see db/schema.ts), so the insert
-    // below starts from a clean slate rather than colliding with them.
+    if (existing.status === 'processed') {
+      return { documentId: existing.id, deduped: true };
+    }
+    const isStale = existing.status !== 'failed' && Date.now() - existing.uploadedAt.getTime() > STUCK_INGEST_THRESHOLD_MS;
+    if (existing.status !== 'failed' && !isStale) {
+      // A fresh, non-terminal row: treat it the same as a completed dedupe hit
+      // rather than guessing at whether the request that created it is still
+      // alive — retrying underneath a genuinely in-flight ingest would delete the
+      // row out from under it (pages.documentId has onDelete: 'cascade') and leave
+      // its still-running upload/page-insert calls referencing a document that no
+      // longer exists.
+      return { documentId: existing.id, deduped: true };
+    }
+    // Either status === 'failed' (a previous ingest of these exact bytes failed
+    // partway through — see the catch block below) or it's stale-and-stuck (a
+    // crashed/killed process left it non-terminal with nothing left to finish it).
+    // Neither is a usable dedupe hit. Deleting the old row first (rather than
+    // reusing its id) cascades to any partial `pages` rows it left behind, so the
+    // insert below starts from a clean slate rather than colliding with them.
     await db.delete(documents).where(eq(documents.id, existing.id));
   }
 
   const storagePath = originalPath(params.batchId, sha256);
-  await uploadObject(storagePath, params.buffer, params.mimeType);
 
-  const [renderedPages, pageTexts] = await Promise.all([
-    renderPdfPages(params.buffer),
-    extractPageTexts(params.buffer),
-  ]);
-  const hasTextLayer = pageTexts.every((p) => p.hasTextLayer);
-  const ocrRequired = pageTexts.some((p) => !p.hasTextLayer);
-
+  // Insert a placeholder row up front, before any of the risky work below (a
+  // hostile/malformed PDF that pdfjs-dist rejects, a Storage outage, an OCR
+  // failure) -- pageCount/hasTextLayer/ocrRequired aren't known yet and are filled
+  // in once rendering succeeds, but every exception path from here on now has a
+  // row to mark 'failed' against, instead of a bare uncaught exception with an
+  // orphaned Storage upload and no persisted record that anything was attempted.
   let documentId: string;
   try {
     const [inserted] = await db
@@ -75,9 +94,6 @@ export async function ingestDocument(params: IngestDocumentParams): Promise<Inge
         mimeType: params.mimeType,
         storagePath,
         sha256,
-        pageCount: renderedPages.length,
-        hasTextLayer,
-        ocrRequired,
         inDevSubset: params.inDevSubset ?? false,
         status: 'uploaded',
       })
@@ -103,6 +119,20 @@ export async function ingestDocument(params: IngestDocumentParams): Promise<Inge
   }
 
   try {
+    await uploadObject(storagePath, params.buffer, params.mimeType);
+
+    const [renderedPages, pageTexts] = await Promise.all([
+      renderPdfPages(params.buffer),
+      extractPageTexts(params.buffer),
+    ]);
+    const hasTextLayer = pageTexts.every((p) => p.hasTextLayer);
+    const ocrRequired = pageTexts.some((p) => !p.hasTextLayer);
+
+    await db
+      .update(documents)
+      .set({ pageCount: renderedPages.length, hasTextLayer, ocrRequired })
+      .where(eq(documents.id, documentId));
+
     for (const rendered of renderedPages) {
       const pageText = pageTexts.find((p) => p.pageNumber === rendered.pageNumber);
       let textContent = pageText?.text ?? '';
