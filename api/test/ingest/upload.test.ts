@@ -2,12 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { documents } from '../../src/db/schema.js';
 
 const mocks = vi.hoisted(() => ({
-  selectResult: [] as Array<{ id: string; status?: string }>,
+  selectResult: [] as Array<{ id: string; status?: string; uploadedAt?: Date }>,
   // Per-call override for select(...).limit(), consumed in FIFO order — ingestDocument
   // can now issue two SELECTs in one call (the initial dedupe check, then a second
   // lookup after a unique-violation race), and they need different results. Falls
   // back to `selectResult` once exhausted, so single-SELECT scenarios are unaffected.
-  selectResultQueue: [] as Array<Array<{ id: string; status?: string }>>,
+  selectResultQueue: [] as Array<Array<{ id: string; status?: string; uploadedAt?: Date }>>,
   updateSetCalls: [] as unknown[],
   deleteCalls: [] as unknown[],
   insertShouldThrowCode: null as string | null,
@@ -59,7 +59,7 @@ vi.mock('../../src/lib/storage.js', () => ({
   uploadObject: mocks.uploadObject,
 }));
 
-const { ingestDocument } = await import('../../src/ingest/upload.js');
+const { ingestDocument, STUCK_INGEST_THRESHOLD_MS } = await import('../../src/ingest/upload.js');
 const { readSample } = await import('../fixtures.js');
 
 beforeEach(() => {
@@ -73,8 +73,8 @@ beforeEach(() => {
 });
 
 describe('ingestDocument', () => {
-  it('short-circuits on an existing (batchId, sha256) match without uploading or writing rows', async () => {
-    mocks.selectResult = [{ id: 'existing-doc-id' }];
+  it('short-circuits on an existing, fully-processed (batchId, sha256) match without uploading or writing rows', async () => {
+    mocks.selectResult = [{ id: 'existing-doc-id', status: 'processed' }];
     const buf = await readSample('invoice_clean_01.pdf');
 
     const result = await ingestDocument({
@@ -86,6 +86,50 @@ describe('ingestDocument', () => {
 
     expect(result).toEqual({ documentId: 'existing-doc-id', deduped: true });
     expect(mocks.uploadObject).not.toHaveBeenCalled();
+  });
+
+  // Regression: a document row stuck at a non-terminal status ('uploaded') is
+  // ambiguous -- it might be actively worked on right now, or it might be the
+  // leftover of a process that was killed/crashed mid-ingest with nothing left to
+  // ever finish it. A FRESH one is assumed to still be alive and treated as a
+  // normal dedupe hit, same as today, rather than deleted out from under a
+  // genuinely in-flight request.
+  it('treats a fresh, still-plausibly-in-flight uploaded document as a normal dedupe hit, without deleting it', async () => {
+    mocks.selectResult = [{ id: 'in-flight-doc-id', status: 'uploaded', uploadedAt: new Date(Date.now() - 1_000) }];
+    const buf = await readSample('invoice_clean_01.pdf');
+
+    const result = await ingestDocument({
+      batchId: 'batch-1',
+      filename: 'invoice_clean_01.pdf',
+      mimeType: 'application/pdf',
+      buffer: buf,
+    });
+
+    expect(result).toEqual({ documentId: 'in-flight-doc-id', deduped: true });
+    expect(mocks.deleteCalls).toEqual([]);
+    expect(mocks.uploadObject).not.toHaveBeenCalled();
+  });
+
+  // Regression: before this fix, ANY non-'failed' status (including 'uploaded')
+  // short-circuited as a permanent dedupe hit, so a document whose ingest process
+  // was killed/crashed partway through -- leaving it stuck at 'uploaded' forever,
+  // with no path to 'processed' or 'failed' -- could never be retried by any future
+  // re-upload of the identical bytes.
+  it('deletes and retries a document stuck at a non-terminal status well past the staleness window (a crashed/killed ingest)', async () => {
+    const staleUploadedAt = new Date(Date.now() - (STUCK_INGEST_THRESHOLD_MS + 60_000));
+    mocks.selectResult = [{ id: 'stuck-doc-id', status: 'uploaded', uploadedAt: staleUploadedAt }];
+    const buf = await readSample('invoice_clean_01.pdf');
+
+    const result = await ingestDocument({
+      batchId: 'batch-1',
+      filename: 'invoice_clean_01.pdf',
+      mimeType: 'application/pdf',
+      buffer: buf,
+    });
+
+    expect(mocks.deleteCalls).toEqual([documents]);
+    expect(result).toEqual({ documentId: 'new-doc-id', deduped: false });
+    expect(mocks.uploadObject).toHaveBeenCalled();
   });
 
   it('uploads the original + each page image and marks the document processed', async () => {
@@ -168,5 +212,35 @@ describe('ingestDocument', () => {
     ).rejects.toThrow('storage is down');
 
     expect(mocks.updateSetCalls).toContainEqual({ status: 'failed', failureReason: 'storage is down' });
+  });
+
+  // Regression: uploadObject + renderPdfPages/extractPageTexts used to run before
+  // any documents row existed and outside any try/catch -- a malformed/hostile PDF
+  // (pdfjs-dist rejects it) left the original bytes durably uploaded to Storage
+  // with NO documents row at all: no failed-status record for the UI/audit trail,
+  // no way to discover or clean up the orphaned object, and every retry re-running
+  // the full pipeline from scratch since the dedupe SELECT never found a row.
+  it('persists a failed document row instead of an uncaught exception with an orphaned storage upload, when the render/extract phase itself fails', async () => {
+    mocks.selectResult = [];
+    const garbageBuffer = Buffer.from('this is not a pdf at all');
+
+    await expect(
+      ingestDocument({ batchId: 'batch-1', filename: 'garbage.pdf', mimeType: 'application/pdf', buffer: garbageBuffer }),
+    ).rejects.toThrow();
+
+    // The original bytes were durably uploaded before the failure...
+    expect(mocks.uploadObject).toHaveBeenCalledTimes(1);
+    expect(mocks.uploadObject).toHaveBeenCalledWith(expect.stringContaining('/original.pdf'), garbageBuffer, 'application/pdf');
+    // ...but unlike before this fix, that upload is no longer an orphan: a
+    // placeholder documents row was inserted up front and is now marked failed
+    // with a real reason, not silently left at 'uploaded' forever nor simply
+    // never created.
+    const failedUpdate = mocks.updateSetCalls.find(
+      (v): v is { status: string; failureReason: string } =>
+        typeof v === 'object' && v !== null && (v as { status?: string }).status === 'failed',
+    );
+    expect(failedUpdate).toBeDefined();
+    expect(typeof failedUpdate?.failureReason).toBe('string');
+    expect(failedUpdate?.failureReason.length).toBeGreaterThan(0);
   });
 });

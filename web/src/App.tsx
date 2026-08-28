@@ -42,6 +42,10 @@ function App() {
   const [itemsReviewed, setItemsReviewed] = useState(0);
   const [itemsCorrected, setItemsCorrected] = useState(0);
   const [queueState, setQueueState] = useState<QueueState>({ status: 'loading' });
+  // Mirrors queueState.status for applyFetchedItem's synchronous "was something
+  // already showing" check below — see its own comment for why a ref, not a
+  // functional setQueueState updater, is what reads this.
+  const queueStatusRef = useRef<QueueState['status']>('loading');
   // True while a refetch is in flight after an already-resolved item — the two-pane
   // layout stays mounted and dimmed rather than getting torn down, so a fast
   // accept/correct doesn't visibly flash to a blank loading screen on every keystroke.
@@ -170,19 +174,27 @@ function App() {
     // Only blank the screen for a true first load (or after an error) — once
     // something is already showing, keep it on screen (marked "transitioning")
     // while the next item loads instead of unmounting the whole two-pane layout.
-    setQueueState((prev) => {
-      if (prev.status === 'loaded') {
-        setIsTransitioning(true);
-        return prev;
-      }
-      return { status: 'loading' };
-    });
+    //
+    // Reads/writes queueStatusRef rather than a functional setQueueState(prev => ...)
+    // updater — calling setIsTransitioning from INSIDE another state setter's updater
+    // callback is exactly the anti-pattern it looks like: React can defer invoking
+    // that callback until it actually needs the new queueState (e.g. while folding
+    // a later render's pending updates), which can run AFTER a same-tick-or-sooner-
+    // resolving fetchItem() has already called setIsTransitioning(false) below —
+    // silently overwriting it back to true with no further update ever coming to
+    // undo it. A plain ref read is synchronous and unambiguous.
+    if (queueStatusRef.current === 'loaded') {
+      setIsTransitioning(true);
+    } else {
+      setQueueState({ status: 'loading' });
+    }
     fetchItem()
       .then(({ item }) => {
         // A newer fetch has already started (and possibly already resolved) since
         // this one did — its result is the current truth, so this now-stale
         // response must not overwrite it.
         if (queueFetchSeqRef.current !== mySeq) return;
+        queueStatusRef.current = 'loaded';
         setQueueState({ status: 'loaded', item });
         setIsTransitioning(false);
         justResolvedFieldValueIdRef.current = null;
@@ -198,6 +210,7 @@ function App() {
       })
       .catch((err) => {
         if (queueFetchSeqRef.current !== mySeq) return;
+        queueStatusRef.current = 'error';
         setQueueState({ status: 'error', message: errorMessage(err) });
         setIsTransitioning(false);
       });

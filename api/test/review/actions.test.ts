@@ -14,12 +14,21 @@ const mocks = vi.hoisted(() => ({
   reviewSessionsResult: [] as unknown[],
   correctionsResult: [] as unknown[],
   insertReturning: [] as unknown[],
-  updateReturning: [] as unknown[],
-  // Per-call overrides for update(...).returning(), consumed in FIFO order — lets a
-  // test give the Nth update() call in a single action (e.g. acceptField's per-row
-  // loop) its own distinct "who actually got updated" result, which the single
-  // shared `updateReturning` value can't express. Falls back to `updateReturning`
-  // once exhausted, so tests that only ever expect one update() call are unaffected.
+  // Default result for any update(...).returning() call that isn't served by
+  // updateReturningQueue below — a truthy single row, since every primary UPDATE in
+  // actions.ts now re-asserts the status it read at SELECT time and treats an empty
+  // .returning() as "a concurrent action already changed this" (see the six
+  // "loses the race" tests). Tests that want to exercise that race set this to []
+  // instead.
+  updateReturning: [{ id: 'default-updated-row' }] as unknown[],
+  // Per-call overrides for field_value_rows update(...).returning(), consumed in
+  // FIFO order — lets a test give the Nth fieldValueRows update() call in a single
+  // action (e.g. acceptField's per-row bulk-resolve loop) its own distinct "who
+  // actually got updated" result, which the single shared `updateReturning` value
+  // can't express. Deliberately scoped to fieldValueRows only: acceptField's own
+  // PRIMARY update is on fieldValues and must keep using plain `updateReturning`,
+  // not steal an entry meant for the nested per-row loop that runs after it. Falls
+  // back to `updateReturning` once exhausted.
   updateReturningQueue: [] as unknown[][],
   insertCalls: [] as Array<{ table: unknown; values: Record<string, unknown> }>,
   updateCalls: [] as Array<{ table: unknown; values: Record<string, unknown> }>,
@@ -52,8 +61,16 @@ vi.mock('../../src/db/client.js', () => ({
         return {
           where: () => ({
             then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => Promise.resolve(undefined).then(resolve, reject),
-            returning: () =>
-              Promise.resolve(mocks.updateReturningQueue.length > 0 ? mocks.updateReturningQueue.shift() : mocks.updateReturning),
+            returning: () => {
+              // The queue is scoped to fieldValueRows (see its declaration above) —
+              // a fieldValues update always reads plain `updateReturning`, so
+              // acceptField's own primary guard can't accidentally consume an entry
+              // meant for its nested per-row loop, which updates fieldValueRows.
+              if (table === fieldValueRows && mocks.updateReturningQueue.length > 0) {
+                return Promise.resolve(mocks.updateReturningQueue.shift());
+              }
+              return Promise.resolve(mocks.updateReturning);
+            },
           }),
         };
       },
@@ -102,7 +119,7 @@ beforeEach(() => {
   mocks.reviewSessionsResult = [];
   mocks.correctionsResult = [];
   mocks.insertReturning = [];
-  mocks.updateReturning = [];
+  mocks.updateReturning = [{ id: 'default-updated-row' }];
   mocks.updateReturningQueue = [];
   mocks.insertCalls.length = 0;
   mocks.updateCalls.length = 0;
@@ -211,6 +228,21 @@ describe('acceptField', () => {
     expect(rowCorrections).toHaveLength(1);
     expect(rowCorrections[0].values.fieldValueRowId).toBe('row-2');
   });
+
+  // Regression: the primary UPDATE now re-asserts status='needs_review' itself,
+  // not just the earlier SELECT -- a concurrent action (another reviewer on the
+  // same shared queue, a client retry, a double-fired keypress) that resolves this
+  // exact field in the gap between them must lose cleanly, not get silently
+  // clobbered or double-counted.
+  it('throws NotNeedsReviewError instead of silently succeeding when a concurrent action wins the race between SELECT and UPDATE', async () => {
+    mocks.fieldValuesResult = [{ id: 'fv-1', status: 'needs_review', fieldType: 'string', normalizedValue: 'INV-1' }];
+    mocks.reviewSessionsResult = [{ id: 'session-1', itemsReviewed: 0, itemsCorrected: 0 }];
+    mocks.updateReturning = []; // the guarded UPDATE matches 0 rows
+
+    await expect(acceptField('fv-1', 'alice', 'session-1')).rejects.toThrow(NotNeedsReviewError);
+    expect(insertsTo(corrections)).toHaveLength(0);
+    expect(updatesTo(reviewSessions)).toHaveLength(0);
+  });
 });
 
 describe('correctField', () => {
@@ -249,6 +281,17 @@ describe('correctField', () => {
     await expect(correctField('fv-1', 'alice', 'INV-2', undefined, 'missing-session')).rejects.toThrow(SessionNotFoundError);
     expect(updatesTo(fieldValues)).toHaveLength(0);
     expect(insertsTo(corrections)).toHaveLength(0);
+  });
+
+  // Same reasoning as acceptField's identical regression test above.
+  it('throws NotNeedsReviewError instead of silently succeeding when a concurrent action wins the race between SELECT and UPDATE', async () => {
+    mocks.fieldValuesResult = [{ id: 'fv-1', status: 'needs_review', fieldType: 'string', normalizedValue: 'INV-1' }];
+    mocks.reviewSessionsResult = [{ id: 'session-1', itemsReviewed: 0, itemsCorrected: 0 }];
+    mocks.updateReturning = [];
+
+    await expect(correctField('fv-1', 'alice', 'INV-2', undefined, 'session-1')).rejects.toThrow(NotNeedsReviewError);
+    expect(insertsTo(corrections)).toHaveLength(0);
+    expect(updatesTo(reviewSessions)).toHaveLength(0);
   });
 });
 
@@ -292,6 +335,17 @@ describe('acceptRow', () => {
 
     await expect(acceptRow('row-1', 'alice', 'missing-session')).rejects.toThrow(SessionNotFoundError);
     expect(updatesTo(fieldValueRows)).toHaveLength(0);
+  });
+
+  // Same reasoning as acceptField's identical regression test above.
+  it('throws NotNeedsReviewError instead of silently succeeding when a concurrent action wins the race between SELECT and UPDATE', async () => {
+    mocks.fieldValueRowsResult = [{ id: 'row-1', status: 'needs_review', cells: {} }];
+    mocks.reviewSessionsResult = [{ id: 'session-1', itemsReviewed: 0, itemsCorrected: 0 }];
+    mocks.updateReturning = [];
+
+    await expect(acceptRow('row-1', 'alice', 'session-1')).rejects.toThrow(NotNeedsReviewError);
+    expect(insertsTo(corrections)).toHaveLength(0);
+    expect(updatesTo(reviewSessions)).toHaveLength(0);
   });
 });
 
@@ -339,6 +393,17 @@ describe('correctRow', () => {
     await correctRow('row-1', 'alice', 'amount', '9.99', undefined);
 
     expect(insertsTo(corrections)[0].values).toMatchObject({ oldValue: null, newValue: '9.99' });
+  });
+
+  // Same reasoning as acceptField's identical regression test above.
+  it('throws NotNeedsReviewError instead of silently succeeding when a concurrent action wins the race between SELECT and UPDATE', async () => {
+    mocks.fieldValueRowsResult = [{ id: 'row-1', status: 'needs_review', cells: { description: 'Widget', amount: '1.00' } }];
+    mocks.reviewSessionsResult = [{ id: 'session-1', itemsReviewed: 0, itemsCorrected: 0 }];
+    mocks.updateReturning = [];
+
+    await expect(correctRow('row-1', 'alice', 'amount', '9.99', undefined, 'session-1')).rejects.toThrow(NotNeedsReviewError);
+    expect(insertsTo(corrections)).toHaveLength(0);
+    expect(updatesTo(reviewSessions)).toHaveLength(0);
   });
 });
 
@@ -414,6 +479,17 @@ describe('undoField', () => {
     expect(insertsTo(corrections)).toHaveLength(1);
     expect(updatesTo(reviewSessions)).toHaveLength(0);
   });
+
+  // Same reasoning as acceptField's identical regression test above.
+  it('throws NothingToUndoError instead of silently succeeding when a concurrent action wins the race between SELECT and UPDATE', async () => {
+    mocks.fieldValuesResult = [{ id: 'fv-1', status: 'confirmed', normalizedValue: 'INV-1', finalValue: 'INV-1' }];
+    mocks.reviewSessionsResult = [{ id: 'session-1', itemsReviewed: 3, itemsCorrected: 1 }];
+    mocks.updateReturning = [];
+
+    await expect(undoField('fv-1', 'alice', 'session-1')).rejects.toThrow(NothingToUndoError);
+    expect(insertsTo(corrections)).toHaveLength(0);
+    expect(updatesTo(reviewSessions)).toHaveLength(0);
+  });
 });
 
 describe('undoRow', () => {
@@ -486,6 +562,19 @@ describe('undoRow', () => {
 
     expect(result).toEqual({ id: 'row-1', status: 'needs_review' });
     expect(updatesTo(fieldValueRows)[0].values).toMatchObject({ status: 'needs_review', finalCells: null });
+    expect(updatesTo(reviewSessions)).toHaveLength(0);
+  });
+
+  // Same reasoning as acceptField's identical regression test above.
+  it('throws NothingToUndoError instead of silently succeeding when a concurrent action wins the race between SELECT and UPDATE', async () => {
+    const cells = { description: 'Widget', amount: '1.00' };
+    mocks.fieldValueRowsResult = [{ id: 'row-1', status: 'confirmed', cells, finalCells: cells }];
+    mocks.reviewSessionsResult = [{ id: 'session-1', itemsReviewed: 2, itemsCorrected: 0 }];
+    mocks.correctionsResult = [{ fieldValueRowId: 'row-1', columnKey: null, correctedAt: new Date('2026-08-01T00:00:00Z') }];
+    mocks.updateReturning = [];
+
+    await expect(undoRow('row-1', 'alice', 'session-1')).rejects.toThrow(NothingToUndoError);
+    expect(insertsTo(corrections)).toHaveLength(0);
     expect(updatesTo(reviewSessions)).toHaveLength(0);
   });
 });

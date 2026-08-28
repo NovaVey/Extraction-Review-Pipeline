@@ -85,10 +85,23 @@ export async function acceptField(fieldValueId: string, reviewer: string, review
   }
 
   const now = new Date();
-  await db
+  // Re-assert status='needs_review' in the UPDATE itself, not just the SELECT above
+  // -- the same read-then-write race this file already guards against one level
+  // down, in the table-row bulk-resolve loop just below (see its own comment there).
+  // A concurrent accept/correct/undo on this exact field -- two reviewers pulling the
+  // same item off the shared queue, a client retry, a double-fired keypress -- can
+  // land its own real change in the gap between that SELECT and this UPDATE; without
+  // this guard, this write would silently clobber it and both callers would each
+  // insert a corrections row and bump session counters for what only actually
+  // happened once.
+  const [updatedField] = await db
     .update(fieldValues)
     .set({ status: 'confirmed', finalValue: field.normalizedValue, reviewedBy: reviewer, reviewedAt: now })
-    .where(eq(fieldValues.id, fieldValueId));
+    .where(and(eq(fieldValues.id, fieldValueId), eq(fieldValues.status, 'needs_review')))
+    .returning();
+  if (!updatedField) {
+    throw new NotNeedsReviewError(`Field value ${fieldValueId} is not needs_review (status: ${field.status})`);
+  }
 
   await db.insert(corrections).values({
     fieldValueId,
@@ -151,10 +164,17 @@ export async function correctField(
   }
 
   const now = new Date();
-  await db
+  // Same guard as acceptField above -- re-assert status='needs_review' inside the
+  // UPDATE itself so a concurrent action on this exact field can't be silently
+  // clobbered or double-counted.
+  const [updatedField] = await db
     .update(fieldValues)
     .set({ status: 'corrected', finalValue: newValue, reviewedBy: reviewer, reviewedAt: now })
-    .where(eq(fieldValues.id, fieldValueId));
+    .where(and(eq(fieldValues.id, fieldValueId), eq(fieldValues.status, 'needs_review')))
+    .returning();
+  if (!updatedField) {
+    throw new NotNeedsReviewError(`Field value ${fieldValueId} is not needs_review (status: ${field.status})`);
+  }
 
   await db.insert(corrections).values({
     fieldValueId,
@@ -177,7 +197,17 @@ export async function acceptRow(fieldValueRowId: string, reviewer: string, revie
     throw new NotNeedsReviewError(`Field value row ${fieldValueRowId} is not needs_review (status: ${row.status})`);
   }
 
-  await db.update(fieldValueRows).set({ status: 'confirmed', finalCells: row.cells }).where(eq(fieldValueRows.id, fieldValueRowId));
+  // Same guard as acceptField -- re-assert status='needs_review' inside the UPDATE
+  // itself so a concurrent action on this exact row can't be silently clobbered or
+  // double-counted.
+  const [updatedRow] = await db
+    .update(fieldValueRows)
+    .set({ status: 'confirmed', finalCells: row.cells })
+    .where(and(eq(fieldValueRows.id, fieldValueRowId), eq(fieldValueRows.status, 'needs_review')))
+    .returning();
+  if (!updatedRow) {
+    throw new NotNeedsReviewError(`Field value row ${fieldValueRowId} is not needs_review (status: ${row.status})`);
+  }
 
   const serializedCells = JSON.stringify(row.cells);
   // The parent field_values row is deliberately left untouched — the field's own
@@ -218,7 +248,17 @@ export async function correctRow(
   // "row-corrected" state, field_value_rows only has the same status vocabulary as
   // field_values); the corrections entry is what captures old vs new for this cell.
   const finalCells = { ...currentCells, [columnKey]: newValue };
-  await db.update(fieldValueRows).set({ status: 'confirmed', finalCells }).where(eq(fieldValueRows.id, fieldValueRowId));
+  // Same guard as acceptRow -- re-assert status='needs_review' inside the UPDATE
+  // itself so a concurrent action on this exact row can't be silently clobbered or
+  // double-counted.
+  const [updatedRow] = await db
+    .update(fieldValueRows)
+    .set({ status: 'confirmed', finalCells })
+    .where(and(eq(fieldValueRows.id, fieldValueRowId), eq(fieldValueRows.status, 'needs_review')))
+    .returning();
+  if (!updatedRow) {
+    throw new NotNeedsReviewError(`Field value row ${fieldValueRowId} is not needs_review (status: ${row.status})`);
+  }
 
   // currentCells[columnKey] can be a real null (an optional column the extractor
   // didn't find) — String(null) would store the literal text "null" in the audit
@@ -257,10 +297,17 @@ export async function undoField(fieldValueId: string, reviewer: string, reviewSe
   }
   const wasCorrected = field.status === 'corrected';
 
-  await db
+  // Same guard as acceptField/correctField -- re-assert the exact status just read
+  // (either 'confirmed' or 'corrected') inside the UPDATE itself, so a concurrent
+  // action on this exact field can't be silently clobbered or double-counted.
+  const [updatedField] = await db
     .update(fieldValues)
     .set({ status: 'needs_review', finalValue: null, reviewedBy: null, reviewedAt: null })
-    .where(eq(fieldValues.id, fieldValueId));
+    .where(and(eq(fieldValues.id, fieldValueId), eq(fieldValues.status, field.status)))
+    .returning();
+  if (!updatedField) {
+    throw new NothingToUndoError(`Field value ${fieldValueId} was not resolved by a review action (status: ${field.status})`);
+  }
 
   // A new audit entry, not a deletion of the original correction — reverting to the
   // model's own value is itself a reviewer action worth a truthful record of, same as
@@ -303,7 +350,17 @@ export async function undoRow(fieldValueRowId: string, reviewer: string, reviewS
     .limit(1);
   const wasCorrected = lastCorrection?.columnKey != null;
 
-  await db.update(fieldValueRows).set({ status: 'needs_review', finalCells: null }).where(eq(fieldValueRows.id, fieldValueRowId));
+  // Same guard as undoField -- re-assert status='confirmed' (the only resolved
+  // status a row can carry) inside the UPDATE itself, so a concurrent action on
+  // this exact row can't be silently clobbered or double-counted.
+  const [updatedRow] = await db
+    .update(fieldValueRows)
+    .set({ status: 'needs_review', finalCells: null })
+    .where(and(eq(fieldValueRows.id, fieldValueRowId), eq(fieldValueRows.status, 'confirmed')))
+    .returning();
+  if (!updatedRow) {
+    throw new NothingToUndoError(`Field value row ${fieldValueRowId} was not resolved by a review action (status: ${row.status})`);
+  }
 
   await db.insert(corrections).values({
     fieldValueRowId,
