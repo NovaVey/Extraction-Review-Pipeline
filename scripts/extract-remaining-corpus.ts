@@ -1,9 +1,16 @@
-// Runs extraction over every document that does NOT yet have an extraction — the 50
-// of 60 documents left over after scripts/extract-devset.ts's original 10-document
-// dev subset. Unlike extract-devset.ts (which deliberately re-extracts on every run,
-// since the 10-doc subset is meant for cheap iteration), this script skips anything
-// already extracted, so re-running it after a partial/failed run only pays for what's
-// still missing rather than re-charging for work that already succeeded.
+// Runs extraction over every document that does NOT yet have a SUCCESSFUL
+// extraction — the 50 of 60 documents left over after scripts/extract-devset.ts's
+// original 10-document dev subset, plus anything that previously failed outright.
+// Unlike extract-devset.ts (which deliberately re-extracts on every run, since the
+// 10-doc subset is meant for cheap iteration), this script skips anything already
+// successfully extracted, so re-running it after a partial/failed run only pays for
+// what's still missing rather than re-charging for work that already succeeded.
+//
+// "Already extracted" means status='completed' specifically, not merely "a row
+// exists": extractDocument still inserts an extractions row with status='failed'
+// when every sample fails to produce parseable output (see extract/run.ts), and a
+// failed row must NOT count as done — otherwise this script's own "re-run to retry
+// just these" guidance below would be false for exactly that case.
 //
 // Passes allowOutsideDevSubset: true to extractDocument — that guard exists
 // specifically to stop the API route (and any other caller) from accidentally
@@ -11,13 +18,17 @@
 // explicitly authorized (twice, knowing the real cost both times) rather than
 // something to route around quietly.
 // Run: npx tsx scripts/extract-remaining-corpus.ts
+import { eq } from 'drizzle-orm';
 import { db, pool } from '../api/src/db/client.js';
 import { documents, extractions } from '../api/src/db/schema.js';
 import { extractDocument } from '../api/src/extract/run.js';
 
 async function main() {
   const allDocs = await db.select({ id: documents.id, filename: documents.filename }).from(documents);
-  const alreadyExtracted = await db.selectDistinct({ documentId: extractions.documentId }).from(extractions);
+  const alreadyExtracted = await db
+    .selectDistinct({ documentId: extractions.documentId })
+    .from(extractions)
+    .where(eq(extractions.status, 'completed'));
   const alreadyExtractedIds = new Set(alreadyExtracted.map((e) => e.documentId));
   const remaining = allDocs.filter((d) => !alreadyExtractedIds.has(d.id));
 
