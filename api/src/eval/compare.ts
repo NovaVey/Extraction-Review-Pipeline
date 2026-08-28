@@ -1,5 +1,5 @@
 import type { FieldType } from '../extract/schema.js';
-import { stripMoneySymbols } from '../confidence/validate.js';
+import { parseDateDay, parseNumeric, canonicalizeValue } from '../confidence/canonicalize.js';
 import type { GoldLineItem } from './goldSet.js';
 
 // Money/number values are compared numerically after stripping symbols (so "$106.81"
@@ -7,29 +7,6 @@ import type { GoldLineItem } from './goldSet.js';
 // float round-tripping, not real disagreement (a genuine typo'd cent is still >0.005
 // away in every case this corpus produces).
 const NUMERIC_EPSILON = 0.005;
-
-// Date.parse treats an ISO date-only string ("2025-09-19") as UTC midnight but a
-// verbose one ("September 19, 2025") as *local* midnight (ECMA-262 21.4.3.2) — on a
-// host with a large positive UTC offset, a non-ISO extracted date could compute one
-// calendar day off from the same date parsed from gold's ISO string. Not fixed: this
-// deployment runs UTC (offsets agree), and the corpus only ever prints ISO dates on
-// the page (scripts/make-synthetic-docs.ts uses fmtDateISO, never fmtDateDisplay), so
-// the model has nothing non-ISO to transcribe. Revisit if either assumption changes.
-function parseDateDay(value: string): number | null {
-  const parsed = Date.parse(value);
-  return Number.isNaN(parsed) ? null : Math.floor(parsed / 86400000);
-}
-
-function parseNumeric(value: string | number): number | null {
-  // Number('') and Number('   ') both coerce to 0, not NaN — the same gotcha
-  // confidence/validate.ts's own number/money branches guard against explicitly.
-  // Without this, a blank or non-numeric value would silently compare equal to a
-  // real gold value of "0".
-  const stripped = stripMoneySymbols(String(value)).trim();
-  if (stripped.length === 0) return null;
-  const numeric = Number(stripped);
-  return Number.isNaN(numeric) ? null : numeric;
-}
 
 // Compares one extracted value against its gold counterpart for a single scalar
 // field or table cell, per field-type semantics. null/undefined only matches
@@ -67,34 +44,17 @@ const LINE_ITEM_COLUMN_TYPES: Record<string, FieldType> = {
   amount: 'money',
 };
 
-// A canonical string for one row, used only for the order-independent multiset match
-// below — NOT for the positional per-row breakdown, which still uses valuesMatch's
+// The order-independent multiset match below keys each row on canonicalizeValue's
+// output — NOT the positional per-row breakdown above, which still uses valuesMatch's
 // epsilon-based comparison directly. Money/number values are rounded to 2dp rather
 // than epsilon-compared here; every value in this corpus is an exact decimal string,
 // so this is equivalent in practice, but a value that was merely epsilon-close
 // (not exactly equal after rounding) would not collide in the multiset the way it
 // would under valuesMatch's epsilon check.
-function canonicalizeCell(type: FieldType, value: unknown): string {
-  if (value === null || value === undefined) return '__NULL__';
-  switch (type) {
-    case 'money':
-    case 'number': {
-      const numeric = parseNumeric(value as string | number);
-      return numeric === null ? `__UNPARSEABLE__:${String(value)}` : numeric.toFixed(2);
-    }
-    case 'date': {
-      const day = parseDateDay(String(value));
-      return day === null ? `__UNPARSEABLE__:${String(value)}` : String(day);
-    }
-    default:
-      return String(value).trim();
-  }
-}
-
 function rowSignature(row: Record<string, unknown>): string {
   return Object.entries(LINE_ITEM_COLUMN_TYPES)
-    .map(([key, type]) => canonicalizeCell(type, row[key]))
-    .join('');
+    .map(([key, type]) => canonicalizeValue(type, row[key]))
+    .join('');
 }
 
 // True iff the two arrays contain exactly the same rows the same number of times

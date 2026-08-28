@@ -5,6 +5,7 @@ import { downloadObject } from '../lib/storage.js';
 import { env } from '../lib/env.js';
 import { extractSample, PROMPT_VERSION, type ExtractionSampleResult } from './anthropic.js';
 import { validateValue, stripMoneySymbols, type ValidatorStatus } from '../confidence/validate.js';
+import { canonicalizeValue } from '../confidence/canonicalize.js';
 import { computeConfidence, decideStatus } from '../confidence/score.js';
 import { computeCrossFieldChecks, type CrossFieldCheckResults } from '../confidence/crossFieldChecks.js';
 import type { FieldSpec, FieldType } from './schema.js';
@@ -19,13 +20,17 @@ function hasParsedOutput(s: ExtractionSampleResult): s is ExtractionSampleResult
 }
 
 // Self-consistency voting across the N samples: the value most samples agree on
-// (after JSON-stable-keying) becomes the stored value, and the fraction that agreed
-// becomes the confidence signal. Works identically for scalars and whole line-item
-// arrays — an array is just another value to compare by serialized equality.
-export function pickMajority<T>(values: T[]): { value: T; agreement: number } {
+// becomes the stored value, and the fraction that agreed becomes the confidence
+// signal. Two samples are "the same" per keyFn, which defaults to JSON-stable-keying
+// (works for scalars and whole line-item arrays alike, comparing by serialized
+// equality) — callers that care about semantic rather than literal agreement (e.g.
+// "$1,234.00" and "1,234" being the same money value) pass a canonicalizing keyFn
+// instead; the returned value is always one of the original, unnormalized inputs, so
+// audit/display always shows exactly what a sample actually said.
+export function pickMajority<T>(values: T[], keyFn: (v: T) => string = (v) => JSON.stringify(v)): { value: T; agreement: number } {
   const counts = new Map<string, { value: T; count: number }>();
   for (const v of values) {
-    const key = JSON.stringify(v);
+    const key = keyFn(v);
     const entry = counts.get(key);
     if (entry) entry.count++;
     else counts.set(key, { value: v, count: 1 });
@@ -154,7 +159,17 @@ export async function extractDocument(documentId: string, options?: ExtractDocum
   const passResults: FieldPassResult[] = fields.map((field) => {
     if (field.type === 'table') {
       const sampleArrays = successfulSamples.map((s) => (s.parsed[field.key] as unknown[] | null | undefined) ?? []);
-      const { value: majorityRows, agreement } = pickMajority(sampleArrays);
+      const columns = field.columns ?? [];
+      // Vote on semantic agreement, not literal string equality: a row transcribed
+      // identically but with a differently-formatted money/date cell across samples
+      // ("$9.99" vs "9.99") would otherwise count as full disagreement for the whole
+      // array, even though every cell actually agrees once normalized.
+      // \x01/\x02 (rather than a plain comma or space) so a cell value that
+      // happens to contain the separator can't make two different rows collide.
+      const canonicalizeRow = (row: unknown) =>
+        columns.map((c) => canonicalizeValue(c.type, (row as Record<string, unknown> | null | undefined)?.[c.key])).join('\x02');
+      const canonicalizeArray = (rows: unknown[]) => rows.map(canonicalizeRow).join('\x01');
+      const { value: majorityRows, agreement } = pickMajority(sampleArrays, canonicalizeArray);
       return {
         kind: 'table',
         field,
@@ -167,7 +182,10 @@ export async function extractDocument(documentId: string, options?: ExtractDocum
       const v = s.parsed[field.key];
       return v === null || v === undefined ? null : String(v);
     });
-    const { value: rawValue, agreement } = pickMajority(sampleValues);
+    // Same reasoning as the table branch above: vote on the field-type-aware
+    // canonical form so "$1,234.00" vs "1,234" (still the same money value) counts
+    // as agreement instead of silently defeating auto-accept on formatting noise.
+    const { value: rawValue, agreement } = pickMajority(sampleValues, (v) => canonicalizeValue(field.type, v));
     return {
       kind: 'scalar',
       field,

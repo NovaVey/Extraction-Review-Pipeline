@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { documents, batches, extractionSchemas, pages, extractions, fieldValues, fieldValueRows } from '../../src/db/schema.js';
 import type { FieldSpec } from '../../src/extract/schema.js';
+import { canonicalizeValue } from '../../src/confidence/canonicalize.js';
 
 // extract/run.js imports env.js directly (for SAMPLE_COUNT) in addition to
 // transitively via the (mocked) db/client.js — env.js itself is never mocked, so it
@@ -121,6 +122,26 @@ describe('pickMajority', () => {
     const b = [{ description: 'x', quantity: 1 }];
     const c = [{ description: 'y', quantity: 2 }];
     expect(pickMajority([a, b, c])).toEqual({ value: a, agreement: 2 / 3 });
+  });
+
+  it('without a custom keyFn, formatting-divergent-but-semantically-equal values are NOT treated as agreement (default behavior unchanged)', () => {
+    const result = pickMajority(['$1,234.00', '1234.00', '1,234']);
+    expect(result.agreement).toBe(1 / 3);
+  });
+
+  it('with a canonicalizing keyFn, formatting-divergent-but-semantically-equal money values agree', () => {
+    const samples = ['$1,234.00', '1234.00', '1,234'];
+    const result = pickMajority(samples, (v) => canonicalizeValue('money', v));
+    expect(result.agreement).toBe(1);
+    // The returned value is still one of the original raw samples, never a
+    // canonicalized/normalized string — audit/display always shows what a sample
+    // actually said.
+    expect(samples).toContain(result.value);
+  });
+
+  it('with a canonicalizing keyFn, formatting-divergent-but-semantically-equal dates agree', () => {
+    const result = pickMajority(['2025-09-19', 'September 19, 2025', '2025-09-19'], (v) => canonicalizeValue('date', v));
+    expect(result.agreement).toBe(1);
   });
 });
 
@@ -375,5 +396,80 @@ describe('extractDocument', () => {
 
     expect(mocks.insertedFieldValueRows[0]).toMatchObject({ confidence: '0', status: 'needs_review' });
     expect(mocks.insertedFieldValueRows[0].confidenceParts.validatorStatus).toBe('invalid');
+  });
+
+  it('does not let formatting drift across samples defeat auto-accept on a scalar money field', async () => {
+    // Three samples that agree on every real value, but transcribe "total" with
+    // three different (equally valid) money formats. Before voting on canonicalized
+    // values, this would score as 1/3 agreement -- below every real field's
+    // 0.9-0.95 autoAcceptThreshold -- even though nothing about the value is
+    // actually in dispute.
+    mocks.extractSample
+      .mockResolvedValueOnce({
+        parsed: { invoice_number: 'INV-1', vendor_name: 'Acme Co', line_items: [], subtotal: '100.00', tax: '8.00', total: '$108.00' },
+        rawResponse: { id: 'r1' },
+        inputTokens: 100,
+        outputTokens: 20,
+        stopReason: 'end_turn',
+      })
+      .mockResolvedValueOnce({
+        parsed: { invoice_number: 'INV-1', vendor_name: 'Acme Co', line_items: [], subtotal: '100.00', tax: '8.00', total: '108.00' },
+        rawResponse: { id: 'r2' },
+        inputTokens: 100,
+        outputTokens: 20,
+        stopReason: 'end_turn',
+      })
+      .mockResolvedValueOnce({
+        parsed: { invoice_number: 'INV-1', vendor_name: 'Acme Co', line_items: [], subtotal: '100.00', tax: '8.00', total: '108' },
+        rawResponse: { id: 'r3' },
+        inputTokens: 100,
+        outputTokens: 20,
+        stopReason: 'end_turn',
+      });
+
+    await extractDocument('doc-1');
+
+    const totalRow = mocks.insertedFieldValues.find((v) => v.fieldKey === 'total');
+    expect(totalRow).toMatchObject({ confidence: '1', validatorStatus: 'valid', status: 'auto_accepted' });
+    // rawValue is kept exactly as one sample actually transcribed it -- normalization
+    // is for voting only, never for what gets stored/displayed.
+    expect(['$108.00', '108.00', '108']).toContain(totalRow.rawValue);
+  });
+
+  it('does not let a formatting-only difference in a line-item money cell defeat that row\'s auto-accept', async () => {
+    // Same quantity/description across all three samples; unit_price/amount are
+    // transcribed with different (equally valid) money formatting each time. Before
+    // per-cell canonicalization, this would make every sample's array unique
+    // (agreement 1/3), tanking the row's confidence despite there being no real
+    // disagreement about the row's content.
+    mocks.extractSample
+      .mockResolvedValueOnce({
+        parsed: { invoice_number: 'INV-1', line_items: [{ description: 'widget', quantity: 1, unit_price: '$9.99', amount: '$9.99' }] },
+        rawResponse: { id: 'r1' },
+        inputTokens: 100,
+        outputTokens: 20,
+        stopReason: 'end_turn',
+      })
+      .mockResolvedValueOnce({
+        parsed: { invoice_number: 'INV-1', line_items: [{ description: 'widget', quantity: 1, unit_price: '9.99', amount: '9.99' }] },
+        rawResponse: { id: 'r2' },
+        inputTokens: 100,
+        outputTokens: 20,
+        stopReason: 'end_turn',
+      })
+      .mockResolvedValueOnce({
+        parsed: { invoice_number: 'INV-1', line_items: [{ description: 'widget', quantity: 1, unit_price: '9.990', amount: '9.99' }] },
+        rawResponse: { id: 'r3' },
+        inputTokens: 100,
+        outputTokens: 20,
+        stopReason: 'end_turn',
+      });
+
+    await extractDocument('doc-1');
+
+    const lineItemsRow = mocks.insertedFieldValues.find((v) => v.fieldKey === 'line_items');
+    expect(lineItemsRow).toMatchObject({ confidence: '1', validatorStatus: 'valid' });
+    expect(mocks.insertedFieldValueRows).toHaveLength(1);
+    expect(mocks.insertedFieldValueRows[0]).toMatchObject({ confidence: '1', status: 'auto_accepted' });
   });
 });
